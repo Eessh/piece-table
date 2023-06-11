@@ -36,6 +36,8 @@ bool piece_free(piece* p);
 bool recursively_free_pieces(piece* p);
 bool insert_piece_after(piece* p, piece* after);
 bool split_piece_at(piece* p, const unsigned int offset);
+bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
+bool remove_piece_from_table(piece_table* table, piece* p);
 
 /// Piece API Implementation
 piece* piece_new(const buffer_type buffer,
@@ -118,6 +120,66 @@ bool split_piece_at(piece* p, const unsigned int offset)
     return false;
   }
   p->length = offset;
+
+  return true;
+}
+
+bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece)
+{
+  if(!starting_piece)
+  {
+    return false;
+  }
+
+  if(!ending_piece)
+  {
+    return false;
+  }
+
+  piece* p = starting_piece;
+  while(p->next != ending_piece)
+  {
+    p = p->next;
+  }
+  p->next = NULL;
+  p = starting_piece->next;
+  starting_piece->next = ending_piece;
+
+  if(!recursively_free_pieces(p))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool remove_piece_from_table(piece_table* table, piece* p)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!p)
+  {
+    return false;
+  }
+
+  piece* temp = table->pieces_head;
+  if(temp == p)
+  {
+    // deleting the head
+    table->pieces_head = temp->next;
+    piece_free(temp);
+    return true;
+  }
+
+  while(temp->next != p)
+  {
+    temp = temp->next;
+  }
+  temp->next = p->next;
+  piece_free(p);
 
   return true;
 }
@@ -217,18 +279,112 @@ bool piece_table_insert(piece_table* table,
     {
       return false;
     }
+    return true;
   }
-  else
+
+  if(remaining_offset == 0)
   {
-    if(!split_piece_at(p, remaining_offset))
+    // insert new ADD buffer piece before current piece
+    piece* new_p = piece_new(ADD, add_buffer_length, string_length);
+    new_p->next = p;
+    if(p == table->pieces_head)
+    {
+      table->pieces_head = new_p;
+      return true;
+    }
+    piece* temp = table->pieces_head;
+    while(temp->next != p)
+    {
+      temp = temp->next;
+    }
+    temp->next = new_p;
+    return true;
+  }
+
+  if(!split_piece_at(p, remaining_offset))
+  {
+    return false;
+  }
+  if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool piece_table_remove(piece_table* table,
+                        const unsigned int position,
+                        const unsigned int length)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  piece* starting_piece = NULL;
+  piece* ending_piece = NULL;
+  unsigned int starting_piece_offset = 0, ending_piece_offset = 0;
+
+  starting_piece_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(starting_piece_offset <= p->length)
+    {
+      break;
+    }
+    starting_piece_offset -= p->length;
+    p = p->next;
+  }
+  starting_piece = p;
+
+  p = table->pieces_head;
+  ending_piece_offset = position + length;
+  while(p)
+  {
+    if(ending_piece_offset <= p->length)
+    {
+      break;
+    }
+    ending_piece_offset -= p->length;
+    p = p->next;
+  }
+  ending_piece = p;
+
+  // removal happening in same piece
+  if(starting_piece == ending_piece)
+  {
+    // removal happening in the same piece
+    if(starting_piece_offset + length == p->length)
+    {
+      // we can just change the length of the piece
+      p->length -= length;
+      return true;
+    }
+    // we need to split the node at starting_piece_offset+length
+    // then adjust the length of the current piece
+    if(!split_piece_at(starting_piece, starting_piece_offset + length))
     {
       return false;
     }
-    if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+    p->length -= length;
+    return true;
+  }
+
+  // remove all pieces lying between starting, ending pieces
+  // adjust length of starting piece
+  // adjust starting_position of ending piece
+  if(starting_piece->next != ending_piece)
+  {
+    if(!remove_slice_between_pieces(starting_piece, ending_piece))
     {
       return false;
     }
   }
+
+  starting_piece->length = starting_piece_offset;
+  ending_piece->start_position = ending_piece_offset;
 
   return true;
 }

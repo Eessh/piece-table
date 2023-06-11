@@ -11,25 +11,34 @@ int main()
   }
 
   piece_table_log(pt);
+  printf("Full Buffer: %s\n", piece_table_to_string(pt));
   if(!piece_table_insert(pt, 14, ", Hehe"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
+  printf("Full Buffer: %s\n", piece_table_to_string(pt));
   if(!piece_table_insert(pt, 20, ", Hehe"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
+  printf("Full Buffer: %s\n", piece_table_to_string(pt));
   if(!piece_table_insert(pt, 0, "NEW_SHIT"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
-
+  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  if(!piece_table_remove(pt, 0, 8))
+  {
+    printf("Unable to remove!\n");
+    return 1;
+  }
+  piece_table_log(pt);
   printf("Full Buffer: %s\n", piece_table_to_string(pt));
 
   if(!piece_table_free(pt))
