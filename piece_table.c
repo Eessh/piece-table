@@ -359,7 +359,7 @@ bool piece_table_remove(piece_table* table,
     if(starting_piece_offset + length == p->length)
     {
       // we can just change the length of the piece
-      p->length -= length;
+      starting_piece->length -= length;
       return true;
     }
     // we need to split the node at starting_piece_offset+length
@@ -368,7 +368,7 @@ bool piece_table_remove(piece_table* table,
     {
       return false;
     }
-    p->length -= length;
+    starting_piece->length -= length;
     return true;
   }
 

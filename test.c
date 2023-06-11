@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "piece-table.h"
 
 int main()
@@ -10,36 +11,52 @@ int main()
     return 1;
   }
 
+  char* full_buffer = NULL;
+
   piece_table_log(pt);
-  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_insert(pt, 14, ", Hehe"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
-  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_insert(pt, 20, ", Hehe"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
-  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_insert(pt, 0, "NEW_SHIT"))
   {
     printf("Unable to insert!\n");
     return 1;
   }
   piece_table_log(pt);
-  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_remove(pt, 0, 8))
   {
     printf("Unable to remove!\n");
     return 1;
   }
   piece_table_log(pt);
-  printf("Full Buffer: %s\n", piece_table_to_string(pt));
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
 
   if(!piece_table_free(pt))
   {
