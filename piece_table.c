@@ -252,19 +252,13 @@ bool piece_table_insert(piece_table* table,
 
   if(!table->add_buffer)
   {
-    table->add_buffer = (char*)calloc(string_length + 1, sizeof(char));
-    if(!table->add_buffer)
-    {
-      return false;
-    }
-    strcat(table->add_buffer, string);
-    table->add_buffer[string_length + 1] = '\0';
+    table->add_buffer = strdup(string);
   }
   else
   {
     table->add_buffer =
       (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
-    strcat(table->add_buffer, string);
+    memcpy(table->add_buffer+add_buffer_length, string, sizeof(char)*string_length);
     table->add_buffer[new_add_buffer_length] = '\0';
   }
 
