@@ -258,7 +258,9 @@ bool piece_table_insert(piece_table* table,
   {
     table->add_buffer =
       (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
-    memcpy(table->add_buffer+add_buffer_length, string, sizeof(char)*string_length);
+    memcpy(table->add_buffer + add_buffer_length,
+           string,
+           sizeof(char) * string_length);
     table->add_buffer[new_add_buffer_length] = '\0';
   }
 
@@ -381,6 +383,92 @@ bool piece_table_remove(piece_table* table,
   ending_piece->start_position = ending_piece_offset;
 
   return true;
+}
+
+char* piece_table_get_slice(const piece_table* table,
+                            const unsigned int position,
+                            const unsigned int length)
+{
+  if(!table)
+  {
+    return NULL;
+  }
+
+  piece* starting_piece = NULL;
+  piece* ending_piece = NULL;
+  unsigned int starting_piece_offset = 0, ending_piece_offset = 0;
+
+  starting_piece_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(starting_piece_offset <= p->length)
+    {
+      break;
+    }
+    starting_piece_offset -= p->length;
+    p = p->next;
+  }
+  starting_piece = p;
+
+  p = table->pieces_head;
+  ending_piece_offset = position + length;
+  while(p)
+  {
+    if(ending_piece_offset <= p->length)
+    {
+      break;
+    }
+    ending_piece_offset -= p->length;
+    p = p->next;
+  }
+  ending_piece = p;
+
+  char* slice = (char*)calloc(length + 1, sizeof(char));
+  if(!slice)
+  {
+    return NULL;
+  }
+
+  if(starting_piece == ending_piece)
+  {
+    memcpy(slice,
+           (starting_piece->buffer == ORIGINAL ? table->original_buffer
+                                               : table->add_buffer) +
+             starting_piece_offset,
+           starting_piece->length - starting_piece_offset);
+    slice[length] = '\0';
+    return slice;
+  }
+
+  unsigned int destination_copy_offset = 0;
+  memcpy(slice,
+         (starting_piece->buffer == ORIGINAL ? table->original_buffer
+                                             : table->add_buffer) +
+           starting_piece_offset,
+         starting_piece->length - starting_piece_offset);
+
+  destination_copy_offset += starting_piece->length - starting_piece_offset;
+  p = starting_piece->next;
+
+  while(p != ending_piece)
+  {
+    char* source =
+      p->buffer == ORIGINAL ? table->original_buffer : table->add_buffer;
+    memcpy(
+      slice + destination_copy_offset, source + p->start_position, p->length);
+    destination_copy_offset += p->length;
+    p = p->next;
+  }
+
+  memcpy(slice + destination_copy_offset,
+         (ending_piece->buffer == ORIGINAL ? table->original_buffer
+                                           : table->add_buffer) +
+           ending_piece->start_position,
+         sizeof(char) * ending_piece_offset);
+
+  slice[length] = '\0';
+  return slice;
 }
 
 char* piece_table_to_string(const piece_table* table)

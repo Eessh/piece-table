@@ -58,6 +58,10 @@ int main()
   printf("Full Buffer: %s\n", full_buffer);
   free(full_buffer);
 
+  full_buffer = piece_table_get_slice(pt, 2, 22);
+  printf("\nSlice: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_free(pt))
   {
     printf("Unable to free piece_tabe!\n");
