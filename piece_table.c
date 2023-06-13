@@ -533,6 +533,24 @@ char* piece_table_to_string(const piece_table* table)
   return string;
 }
 
+int piece_table_get_length(const piece_table* table)
+{
+  if(!table)
+  {
+    return -1;
+  }
+
+  int length = 0;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    length += p->length;
+    p = p->next;
+  }
+
+  return length;
+}
+
 bool piece_table_free(piece_table* table)
 {
   if(!table)

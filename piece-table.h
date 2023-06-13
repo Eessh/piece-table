@@ -20,6 +20,7 @@ extern "C"
                           const unsigned int position,
                           const unsigned int length);
   char* piece_table_to_string(const piece_table* table);
+  int piece_table_get_length(const piece_table* table);
   char piece_table_get_char_at(const piece_table* table,
                                const unsigned int position);
   char* piece_table_get_slice(const piece_table* table,
