@@ -248,7 +248,7 @@ bool piece_table_insert(piece_table* table,
   unsigned int add_buffer_length =
     table->add_buffer ? strlen(table->add_buffer) : 0;
   unsigned int string_length = strlen(string);
-  unsigned int new_add_buffer_length = add_buffer_length + string_length + 1;
+  unsigned int new_add_buffer_length = add_buffer_length + string_length;
 
   if(!table->add_buffer)
   {
