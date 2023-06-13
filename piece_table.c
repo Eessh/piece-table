@@ -399,15 +399,15 @@ char piece_table_get_char_at(const piece_table* table,
   {
     if(remaining_offset <= p->length)
     {
-      break;
+      return (p->buffer == ORIGINAL
+                ? table->original_buffer
+                : table->add_buffer)[p->start_position + remaining_offset];
     }
     remaining_offset -= p->length;
     p = p->next;
   }
 
-  return (p->buffer == ORIGINAL
-            ? table->original_buffer
-            : table->add_buffer)[p->start_position + remaining_offset];
+  return '\0';
 }
 
 char* piece_table_get_slice(const piece_table* table,
