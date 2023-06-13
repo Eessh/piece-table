@@ -385,6 +385,31 @@ bool piece_table_remove(piece_table* table,
   return true;
 }
 
+char piece_table_get_char_at(const piece_table* table,
+                             const unsigned int position)
+{
+  if(!table)
+  {
+    return '\0';
+  }
+
+  unsigned int remaining_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(remaining_offset <= p->length)
+    {
+      break;
+    }
+    remaining_offset -= p->length;
+    p = p->next;
+  }
+
+  return (p->buffer == ORIGINAL
+            ? table->original_buffer
+            : table->add_buffer)[p->start_position + remaining_offset];
+}
+
 char* piece_table_get_slice(const piece_table* table,
                             const unsigned int position,
                             const unsigned int length)

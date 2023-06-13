@@ -62,6 +62,8 @@ int main()
   printf("\nSlice: %s\n", full_buffer);
   free(full_buffer);
 
+  printf("char at 13: %c", piece_table_get_char_at(pt, 13));
+
   if(!piece_table_free(pt))
   {
     printf("Unable to free piece_tabe!\n");

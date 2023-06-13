@@ -20,6 +20,8 @@ extern "C"
                           const unsigned int position,
                           const unsigned int length);
   char* piece_table_to_string(const piece_table* table);
+  char piece_table_get_char_at(const piece_table* table,
+                               const unsigned int position);
   char* piece_table_get_slice(const piece_table* table,
                               const unsigned int position,
                               const unsigned int length);
@@ -27,7 +29,6 @@ extern "C"
 
   /// Loggers
   void piece_table_log(piece_table* table);
-  void piece_table_log_pieces(piece_table* table);
 
 #ifdef __cplusplus
 }
