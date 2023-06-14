@@ -27,6 +27,10 @@ extern "C"
                               const unsigned int position,
                               const unsigned int length);
   char* piece_table_get_line(const piece_table* table, const unsigned int line);
+  bool piece_table_replace(piece_table* table,
+                           const unsigned int position,
+                           const unsigned int length,
+                           const char* string);
   bool piece_table_free(piece_table* table);
 
   /// Loggers

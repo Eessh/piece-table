@@ -76,6 +76,14 @@ int main()
   printf("\nline 3: %s\n", full_buffer);
   free(full_buffer);
 
+  if(!piece_table_replace(pt, 2, 5, "REPLACED_SHIT"))
+  {
+    printf("Unable to replace!\n");
+  }
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_free(pt))
   {
     printf("Unable to free piece_tabe!\n");

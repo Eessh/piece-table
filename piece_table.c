@@ -687,6 +687,34 @@ char* piece_table_get_line(const piece_table* table, const unsigned int line)
   return string;
 }
 
+bool piece_table_replace(piece_table* table,
+                         const unsigned int position,
+                         const unsigned int length,
+                         const char* string)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!string)
+  {
+    return false;
+  }
+
+  if(!piece_table_remove(table, position, length))
+  {
+    return false;
+  }
+
+  if(!piece_table_insert(table, position, string))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool piece_table_free(piece_table* table)
 {
   if(!table)
