@@ -62,7 +62,19 @@ int main()
   printf("\nSlice: %s\n", full_buffer);
   free(full_buffer);
 
-  printf("char at 13: %c", piece_table_get_char_at(pt, 13));
+  printf("\nchar at 13: %c\n", piece_table_get_char_at(pt, 13));
+
+  full_buffer = piece_table_get_line(pt, 1);
+  printf("\nline 1: %s\n", full_buffer);
+  free(full_buffer);
+
+  full_buffer = piece_table_get_line(pt, 2);
+  printf("\nline 2: %s\n", full_buffer);
+  free(full_buffer);
+
+  full_buffer = piece_table_get_line(pt, 3);
+  printf("\nline 3: %s\n", full_buffer);
+  free(full_buffer);
 
   if(!piece_table_free(pt))
   {

@@ -356,6 +356,10 @@ bool piece_table_remove(piece_table* table,
     {
       // we can just change the length of the piece
       starting_piece->length -= length;
+      if(starting_piece->length == 0)
+      {
+        remove_piece_from_table(table, starting_piece);
+      }
       return true;
     }
     // we need to split the node at starting_piece_offset+length
@@ -365,6 +369,10 @@ bool piece_table_remove(piece_table* table,
       return false;
     }
     starting_piece->length -= length;
+    if(starting_piece->length == 0)
+    {
+      remove_piece_from_table(table, starting_piece);
+    }
     return true;
   }
 
@@ -380,6 +388,10 @@ bool piece_table_remove(piece_table* table,
   }
 
   starting_piece->length = starting_piece_offset;
+  if(starting_piece->length == 0)
+  {
+    remove_piece_from_table(table, starting_piece);
+  }
   ending_piece->start_position = ending_piece_offset;
 
   return true;
@@ -549,6 +561,130 @@ int piece_table_get_length(const piece_table* table)
   }
 
   return length;
+}
+
+char* piece_table_get_line(const piece_table* table, const unsigned int line)
+{
+  if(!table)
+  {
+    return NULL;
+  }
+
+  unsigned int new_line_tokens = 0, line_length = 0;
+  char* string = NULL;
+
+  piece* p = table->pieces_head;
+  piece* starting_piece = p;
+  piece* ending_piece = NULL;
+  unsigned int starting_piece_offset = 0, ending_piece_offset = 0;
+
+  bool found_ending_piece = false;
+  while(p)
+  {
+    char* text =
+      p->buffer == ORIGINAL ? table->original_buffer : table->add_buffer;
+    for(unsigned int i = 0; i < p->length; i++)
+    {
+      if(text[p->start_position + i] != '\n')
+      {
+        continue;
+      }
+
+      new_line_tokens++;
+
+      if(new_line_tokens == line - 1)
+      {
+        starting_piece = p;
+        starting_piece_offset = i + 1;
+      }
+
+      if(new_line_tokens == line)
+      {
+        ending_piece = p;
+        ending_piece_offset = i - 1;
+        found_ending_piece = true;
+        break;
+      }
+    }
+
+    if(found_ending_piece)
+    {
+      break;
+    }
+
+    if(p->next)
+    {
+      p = p->next;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  if(!found_ending_piece)
+  {
+    // line is the last line of buffer
+    // hence lies in the last piece
+    ending_piece = p;
+    ending_piece_offset = p->length;
+  }
+
+  if(starting_piece == ending_piece)
+  {
+    // line lies in the same piece
+    line_length = ending_piece_offset - starting_piece_offset + 1;
+    string = (char*)calloc(line_length + 1, sizeof(char));
+    memcpy(string,
+           (starting_piece->buffer == ORIGINAL ? table->original_buffer
+                                               : table->add_buffer) +
+             starting_piece->start_position + starting_piece_offset,
+           line_length);
+    return string;
+  }
+
+  // calculating line length
+  line_length += starting_piece->length - starting_piece_offset;
+  p = starting_piece->next;
+  while(p != ending_piece)
+  {
+    line_length += p->length;
+    p = p->next;
+  }
+  line_length += ending_piece_offset;
+
+  string = (char*)calloc(line_length + 1, sizeof(char));
+
+  // copying string from starting piece
+  memcpy(string,
+         (starting_piece->buffer == ORIGINAL ? table->original_buffer
+                                             : table->add_buffer) +
+           starting_piece->start_position + starting_piece_offset,
+         starting_piece->length - starting_piece_offset);
+
+  unsigned int string_copy_offset =
+    starting_piece->length - starting_piece_offset;
+  p = starting_piece->next;
+  while(p != ending_piece)
+  {
+    memcpy(
+      string + string_copy_offset,
+      (p->buffer == ORIGINAL ? table->original_buffer : table->add_buffer) +
+        p->start_position,
+      p->length);
+    string_copy_offset += p->length;
+    p = p->next;
+  }
+
+  // copying string from ending piece
+  memcpy(string + string_copy_offset,
+         (ending_piece->buffer == ORIGINAL ? table->original_buffer
+                                           : table->add_buffer) +
+           ending_piece->start_position,
+         ending_piece_offset);
+
+  string[line_length] = '\0';
+  return string;
 }
 
 bool piece_table_free(piece_table* table)
