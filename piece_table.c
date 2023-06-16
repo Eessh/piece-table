@@ -9,6 +9,13 @@ typedef enum buffer_type
   ADD
 } buffer_type;
 
+typedef enum operation_type
+{
+  INSERT,
+  REMOVE,
+  REPLACE
+} operation_type;
+
 typedef struct piece
 {
   buffer_type buffer;
@@ -18,12 +25,27 @@ typedef struct piece
   struct piece* next;
 } piece;
 
+typedef struct operation
+{
+  operation_type type;
+
+  piece* prev_piece;
+  piece* start_piece;
+  piece* end_piece;
+  piece* next_piece;
+
+  struct operation* next;
+} operation;
+
 struct piece_table
 {
   char* original_buffer;
   char* add_buffer;
 
   piece* pieces_head;
+
+  operation* undo_stack_top;
+  operation* redo_stack_top;
 };
 
 /// Piece API
@@ -32,12 +54,24 @@ piece* piece_new(const buffer_type buffer,
                  const unsigned int length);
 bool piece_free(piece* p);
 
+/// Operation API
+operation* operation_new(const operation_type type,
+                         piece* prev_piece,
+                         piece* start_piece,
+                         piece* end_piece,
+                         piece* next_piece);
+bool operation_free(operation* op);
+
 /// Helpers
 bool recursively_free_pieces(piece* p);
 bool insert_piece_after(piece* p, piece* after);
 bool split_piece_at(piece* p, const unsigned int offset);
 bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
 bool remove_piece_from_table(piece_table* table, piece* p);
+const char* operation_to_string(const operation* op);
+bool push_operation_on_stack(operation** stack_top, operation* op);
+bool pop_operation_from_stack(operation* stack_top);
+bool recursively_free_operation_stack(operation* op);
 
 /// Piece API Implementation
 piece* piece_new(const buffer_type buffer,
@@ -66,6 +100,40 @@ bool piece_free(piece* p)
   }
 
   free(p);
+  return true;
+}
+
+/// Operation API Implementation
+operation* operation_new(const operation_type type,
+                         piece* prev_piece,
+                         piece* start_piece,
+                         piece* end_piece,
+                         piece* next_piece)
+{
+  operation* op = (operation*)calloc(1, sizeof(operation));
+  if(!op)
+  {
+    return NULL;
+  }
+
+  op->type = type;
+  op->prev_piece = prev_piece;
+  op->start_piece = start_piece;
+  op->end_piece = end_piece;
+  op->next_piece = next_piece;
+  op->next = NULL;
+
+  return op;
+}
+
+bool operation_free(operation* op)
+{
+  if(!op)
+  {
+    return false;
+  }
+
+  free(op);
   return true;
 }
 
@@ -184,6 +252,83 @@ bool remove_piece_from_table(piece_table* table, piece* p)
   return true;
 }
 
+const char* operation_to_string(const operation* op)
+{
+  if(!op)
+  {
+    return NULL;
+  }
+
+  switch(op->type)
+  {
+  case INSERT:
+    return "INSERT";
+  case REMOVE:
+    return "REMOVE";
+  case REPLACE:
+    return "REPLACE";
+  default:
+    break;
+  }
+
+  return NULL;
+}
+
+bool push_operation_on_stack(operation** stack_top, operation* op)
+{
+
+  if(!op)
+  {
+    return false;
+  }
+
+  if(!*stack_top)
+  {
+    *stack_top = op;
+    return true;
+  }
+
+  op->next = *stack_top;
+  *stack_top = op;
+
+  return true;
+}
+
+bool pop_operation_from_stack(operation* stack_top)
+{
+  if(!stack_top)
+  {
+    return false;
+  }
+
+  operation* temp = stack_top;
+  stack_top = stack_top->next;
+
+  operation_free(temp);
+
+  return true;
+}
+
+bool recursively_free_operation_stack(operation* op)
+{
+  if(!op)
+  {
+    return false;
+  }
+
+  if(op->next)
+  {
+    if(!recursively_free_operation_stack(op->next))
+    {
+      return false;
+    }
+  }
+
+  operation_free(op);
+
+  return true;
+}
+
 /// Piece Table API Implementation
 piece_table* piece_table_new()
 {
@@ -196,6 +341,8 @@ piece_table* piece_table_new()
   table->original_buffer = NULL;
   table->add_buffer = NULL;
   table->pieces_head = NULL;
+  table->undo_stack_top = NULL;
+  table->redo_stack_top = NULL;
 
   return table;
 }
@@ -275,6 +422,18 @@ bool piece_table_insert(piece_table* table,
     {
       return false;
     }
+
+    // inserting undo operation for this insert
+    operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+    if(op)
+    {
+      push_operation_on_stack(&table->undo_stack_top, op);
+    }
+    else
+    {
+      printf("Unable to record INSERT operation onto undo stack");
+    }
+
     return true;
   }
 
@@ -286,6 +445,18 @@ bool piece_table_insert(piece_table* table,
     if(p == table->pieces_head)
     {
       table->pieces_head = new_p;
+
+      // inserting undo operation for this insert
+      operation* op = operation_new(INSERT, NULL, new_p, new_p, p);
+      if(op)
+      {
+        push_operation_on_stack(&table->undo_stack_top, op);
+      }
+      else
+      {
+        printf("Unable to record INSERT operation onto undo stack");
+      }
+
       return true;
     }
     piece* temp = table->pieces_head;
@@ -294,6 +465,18 @@ bool piece_table_insert(piece_table* table,
       temp = temp->next;
     }
     temp->next = new_p;
+
+    // inserting undo operation for this insert
+    operation* op = operation_new(INSERT, temp, new_p, new_p, p);
+    if(op)
+    {
+      push_operation_on_stack(&table->undo_stack_top, op);
+    }
+    else
+    {
+      printf("Unable to record INSERT operation onto undo stack");
+    }
+
     return true;
   }
 
@@ -304,6 +487,17 @@ bool piece_table_insert(piece_table* table,
   if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
   {
     return false;
+  }
+
+  // inserting undo operation for this insert
+  operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+  if(op)
+  {
+    push_operation_on_stack(&table->undo_stack_top, op);
+  }
+  else
+  {
+    printf("Unable to record INSERT operation onto undo stack");
   }
 
   return true;
@@ -730,6 +924,18 @@ bool piece_table_free(piece_table* table)
     return false;
   }
 
+  if(table->undo_stack_top &&
+     !recursively_free_operation_stack(table->undo_stack_top))
+  {
+    return false;
+  }
+
+  if(table->redo_stack_top &&
+     !recursively_free_operation_stack(table->redo_stack_top))
+  {
+    return false;
+  }
+
   free(table);
 
   return true;
@@ -745,27 +951,81 @@ void piece_table_log(piece_table* table)
     return;
   }
 
+  // logging buffers
   printf(
     "Piece Table: {\n\toriginal_buffer: %s,\n\tadd_buffer: %s,\n\tpieces: [",
     table->original_buffer,
     table->add_buffer);
 
-  piece* p = table->pieces_head;
-  if(!p)
+  // logging pieces
+  if(!table->pieces_head)
+  {
+    // printf("]\n}\n");
+    printf("],");
+    // return;
+  }
+  else
+  {
+    piece* p = table->pieces_head;
+    while(p)
+    {
+      printf("\n\t\t{\n\t\t\tbuffer: %s,\n\t\t\tstart_position: "
+             "%d,\n\t\t\tlength: %d\n\t\t}",
+             p->buffer == ORIGINAL ? "ORIGINAL" : "ADD",
+             p->start_position,
+             p->length);
+      p = p->next;
+    }
+
+    // printf("\n\t]\n}\n");
+    printf("\n\t],");
+  }
+
+  // logging undo stack
+  printf("\n\tundo_stack: [");
+  if(!table->undo_stack_top)
+  {
+    printf("],");
+  }
+  else
+  {
+    operation* op = table->undo_stack_top;
+    while(op)
+    {
+      if(op->next)
+      {
+        printf("\n\t\t%s,", operation_to_string(op));
+      }
+      else
+      {
+        printf("\n\t\t%s", operation_to_string(op));
+      }
+      op = op->next;
+    }
+    printf("\n\t],");
+  }
+
+  // logging redo stack
+  printf("\n\tredo_stack: [");
+  if(!table->redo_stack_top)
   {
     printf("]\n}\n");
-    return;
   }
-
-  while(p)
+  else
   {
-    printf("\n\t\t{\n\t\t\tbuffer: %s,\n\t\t\tstart_position: "
-           "%d,\n\t\t\tlength: %d\n\t\t}",
-           p->buffer == ORIGINAL ? "ORIGINAL" : "ADD",
-           p->start_position,
-           p->length);
-    p = p->next;
+    operation* op = table->undo_stack_top;
+    while(op)
+    {
+      if(op->next)
+      {
+        printf("\n\t\t%s,", operation_to_string(op));
+      }
+      else
+      {
+        printf("\n\t\t%s", operation_to_string(op));
+      }
+      op = op->next;
+    }
+    printf("\n\t]\n}\n");
   }
-
-  printf("\n\t]\n}\n");
 }
