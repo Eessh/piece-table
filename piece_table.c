@@ -70,7 +70,7 @@ bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
 bool remove_piece_from_table(piece_table* table, piece* p);
 const char* operation_to_string(const operation* op);
 bool push_operation_on_stack(operation** stack_top, operation* op);
-bool pop_operation_from_stack(operation* stack_top);
+bool pop_operation_from_stack(operation** stack_top);
 bool recursively_free_operation_stack(operation* op);
 
 /// Piece API Implementation
@@ -294,15 +294,23 @@ bool push_operation_on_stack(operation** stack_top, operation* op)
   return true;
 }
 
-bool pop_operation_from_stack(operation* stack_top)
+bool pop_operation_from_stack(operation** stack_top)
 {
-  if(!stack_top)
+  if(!*stack_top)
   {
     return false;
   }
 
-  operation* temp = stack_top;
-  stack_top = stack_top->next;
+  operation* temp = *stack_top;
+
+  if((*stack_top)->next)
+  {
+    stack_top = &((*stack_top)->next);
+  }
+  else
+  {
+    *stack_top = NULL;
+  }
 
   operation_free(temp);
 
