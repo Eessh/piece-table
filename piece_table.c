@@ -71,6 +71,8 @@ bool remove_piece_from_table(piece_table* table, piece* p);
 const char* operation_to_string(const operation* op);
 bool push_operation_on_stack(operation** stack_top, operation* op);
 bool pop_operation_from_stack(operation** stack_top);
+bool move_operation_from_undo_to_redo_stack(piece_table* table);
+bool move_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_operation_stack(operation* op);
 
 /// Piece API Implementation
@@ -285,6 +287,7 @@ bool push_operation_on_stack(operation** stack_top, operation* op)
   if(!*stack_top)
   {
     *stack_top = op;
+    // op->next = NULL;
     return true;
   }
 
@@ -303,18 +306,54 @@ bool pop_operation_from_stack(operation** stack_top)
 
   operation* temp = *stack_top;
 
-  if((*stack_top)->next)
+  if(temp->next)
   {
-    stack_top = &((*stack_top)->next);
+    *stack_top = temp->next;
   }
   else
   {
     *stack_top = NULL;
   }
 
-  operation_free(temp);
+  // in operation is freed, operation on redo stack will
+  // point to NULL, resulting in segmentation fault
+  // operation_free(temp);
 
   return true;
+}
+
+bool move_operation_from_undo_to_redo_stack(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->undo_stack_top)
+  {
+    return false;
+  }
+
+  operation* op = table->undo_stack_top;
+  table->undo_stack_top = op->next;
+
+  if(!table->redo_stack_top)
+  {
+    table->redo_stack_top = op;
+    op->next = NULL;
+    printf("returning true!\n");
+    return true;
+  }
+
+  op->next = table->redo_stack_top;
+  table->redo_stack_top = op;
+
+  return true;
+}
+
+bool move_operation_from_redo_to_undo_stack(piece_table* table)
+{
+  // TODO: move_operation_from_redo_to_undo_stack
 }
 
 bool recursively_free_operation_stack(operation* op)
@@ -917,6 +956,49 @@ bool piece_table_replace(piece_table* table,
   return true;
 }
 
+bool piece_table_undo(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->undo_stack_top)
+  {
+    return false;
+  }
+
+  // virtually removing the inserted piece
+  // by connecting prev_piece, next_piece
+
+  operation* op = table->undo_stack_top;
+  if(!op->prev_piece)
+  {
+    table->pieces_head = op->next_piece;
+  }
+  else
+  {
+    op->prev_piece->next = op->next_piece;
+  }
+
+  // if(!push_operation_on_stack(&table->redo_stack_top, table->undo_stack_top))
+  // {
+  //   return false;
+  // }
+
+  // if(!pop_operation_from_stack(&table->undo_stack_top))
+  // {
+  //   return false;
+  // }
+
+  if(!move_operation_from_undo_to_redo_stack(table))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool piece_table_free(piece_table* table)
 {
   if(!table)
@@ -1021,7 +1103,7 @@ void piece_table_log(piece_table* table)
   }
   else
   {
-    operation* op = table->undo_stack_top;
+    operation* op = table->redo_stack_top;
     while(op)
     {
       if(op->next)
