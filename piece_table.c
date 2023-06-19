@@ -341,7 +341,6 @@ bool move_operation_from_undo_to_redo_stack(piece_table* table)
   {
     table->redo_stack_top = op;
     op->next = NULL;
-    printf("returning true!\n");
     return true;
   }
 
@@ -353,7 +352,30 @@ bool move_operation_from_undo_to_redo_stack(piece_table* table)
 
 bool move_operation_from_redo_to_undo_stack(piece_table* table)
 {
-  // TODO: move_operation_from_redo_to_undo_stack
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->redo_stack_top)
+  {
+    return false;
+  }
+
+  operation* op = table->redo_stack_top;
+  table->redo_stack_top = op->next;
+
+  if(!table->undo_stack_top)
+  {
+    table->undo_stack_top = op;
+    op->next = NULL;
+    return true;
+  }
+
+  op->next = table->undo_stack_top;
+  table->undo_stack_top = op;
+
+  return true;
 }
 
 bool recursively_free_operation_stack(operation* op)
