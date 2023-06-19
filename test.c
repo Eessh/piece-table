@@ -78,15 +78,15 @@ int main()
   printf("Full Buffer: %s\n", full_buffer);
   free(full_buffer);
 
-  // if(!piece_table_remove(pt, 0, 8))
-  // {
-  //   printf("Unable to remove!\n");
-  //   return 1;
-  // }
-  // piece_table_log(pt);
-  // full_buffer = piece_table_to_string(pt);
-  // printf("Full Buffer: %s\n", full_buffer);
-  // free(full_buffer);
+  if(!piece_table_remove(pt, 0, 8))
+  {
+    printf("Unable to remove!\n");
+    return 1;
+  }
+  piece_table_log(pt);
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
 
   // full_buffer = piece_table_get_slice(pt, 2, 22);
   // printf("\nSlice: %s\n", full_buffer);

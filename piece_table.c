@@ -185,6 +185,11 @@ bool split_piece_at(piece* p, const unsigned int offset)
     return false;
   }
 
+  if(offset == 0)
+  {
+    return false;
+  }
+
   if(!insert_piece_after(piece_new(p->buffer, offset, p->length - offset), p))
   {
     return false;
@@ -614,48 +619,201 @@ bool piece_table_remove(piece_table* table,
   // removal happening in same piece
   if(starting_piece == ending_piece)
   {
-    // removal happening in the same piece
+    // removal happening at the end
     if(starting_piece_offset + length == p->length)
     {
       // we can just change the length of the piece
-      starting_piece->length -= length;
+      // does not work for undo & redo
+      // starting_piece->length -= length;
+
+      // split piece at starting piece offset
+      if(!split_piece_at(starting_piece, starting_piece_offset))
+      {
+        return false;
+      }
+
+      piece* op_starting_piece = starting_piece;
       if(starting_piece->length == 0)
       {
+        piece* op_starting_piece = table->pieces_head;
+        while(op_starting_piece->next != starting_piece)
+        {
+          op_starting_piece = op_starting_piece->next;
+        }
         remove_piece_from_table(table, starting_piece);
       }
+
+      // inserting undo operation for this remove
+      operation* op = operation_new(REMOVE,
+                                    op_starting_piece,
+                                    op_starting_piece->next,
+                                    op_starting_piece->next,
+                                    op_starting_piece->next->next);
+      if(op)
+      {
+        push_operation_on_stack(&table->undo_stack_top, op);
+      }
+      else
+      {
+        printf("Unable to record REMOVE operation!\n");
+      }
+
+      // virtually removing the piece to be removed
+      // by connecting starting piece and piece next to removable piece
+      op_starting_piece->next = op_starting_piece->next->next;
+
       return true;
     }
+
     // we need to split the node at starting_piece_offset+length
     // then adjust the length of the current piece
+    // adjusting length, doesn't work for undo & redo
+    // we need to split twice at starting_offset, starting_offset+length
+    // the virtuall remove the middle piece
+    // by connecting the starting end ending pieces among splitted pieces.
     if(!split_piece_at(starting_piece, starting_piece_offset + length))
     {
       return false;
     }
-    starting_piece->length -= length;
-    if(starting_piece->length == 0)
-    {
-      remove_piece_from_table(table, starting_piece);
-    }
-    return true;
-  }
-
-  // remove all pieces lying between starting, ending pieces
-  // adjust length of starting piece
-  // adjust starting_position of ending piece
-  if(starting_piece->next != ending_piece)
-  {
-    if(!remove_slice_between_pieces(starting_piece, ending_piece))
+    // starting_piece->length -= length;
+    if(starting_piece_offset != 0 &&
+       !split_piece_at(starting_piece, starting_piece_offset))
     {
       return false;
     }
+
+    piece* op_starting_piece = starting_piece;
+    if(starting_piece_offset == 0 || starting_piece->length == 0)
+    {
+      // find piece before starting piece
+      // it will be the previous piece for the operation
+      if(starting_piece == table->pieces_head)
+      {
+        op_starting_piece = NULL;
+      }
+      else
+      {
+        op_starting_piece = table->pieces_head;
+        while(op_starting_piece && op_starting_piece->next != starting_piece)
+        {
+          op_starting_piece = op_starting_piece->next;
+        }
+        remove_piece_from_table(table, starting_piece);
+      }
+    }
+
+    operation* op = NULL;
+    if(op_starting_piece)
+    {
+      op = operation_new(REMOVE,
+                         op_starting_piece,
+                         op_starting_piece->next,
+                         op_starting_piece->next,
+                         op_starting_piece->next->next);
+    }
+    else
+    {
+      op = operation_new(REMOVE,
+                         op_starting_piece,
+                         starting_piece,
+                         starting_piece,
+                         starting_piece->next);
+    }
+    if(op)
+    {
+      push_operation_on_stack(&table->undo_stack_top, op);
+    }
+    else
+    {
+      printf("Unable to record REMOVE operation!\n");
+    }
+
+    // virtually removing the piece to be removed
+    // by connecting starting piece and piece next to removable piece
+    if(op_starting_piece)
+    {
+      op_starting_piece->next = op_starting_piece->next->next;
+    }
+    else
+    {
+      table->pieces_head = starting_piece->next;
+    }
+
+    return true;
   }
 
-  starting_piece->length = starting_piece_offset;
+  // here arise two cases:
+  // - starting and ending pieces are next to each other
+  // - some piece exist between starting and ending pieces
+  // in either case we could just split pieces as:
+  // - starting piece at starting piece offset (resulting in 1, 2)
+  // - ending piece at ending piece offset (resulting in 3, 4)
+  // then virtually remove pieces between: 1, 4
+  // this removes complexity of handling pieces between 2, 3
+
+  if(!split_piece_at(starting_piece, starting_piece_offset))
+  {
+    return false;
+  }
+
+  piece* op_starting_piece = starting_piece;
   if(starting_piece->length == 0)
   {
+    op_starting_piece = table->pieces_head;
+    while(op_starting_piece->next != starting_piece)
+    {
+      op_starting_piece = op_starting_piece->next;
+    }
     remove_piece_from_table(table, starting_piece);
   }
-  ending_piece->start_position = ending_piece_offset;
+
+  if(!split_piece_at(ending_piece, ending_piece_offset))
+  {
+    return false;
+  }
+
+  piece* op_ending_piece = ending_piece;
+  if(ending_piece->length == 0)
+  {
+    op_ending_piece = table->pieces_head;
+    while(op_ending_piece->next != ending_piece)
+    {
+      op_ending_piece = op_ending_piece->next;
+    }
+    remove_piece_from_table(table, ending_piece);
+  }
+
+  operation* op = operation_new(REMOVE,
+                                op_starting_piece,
+                                op_starting_piece->next,
+                                op_ending_piece,
+                                op_ending_piece->next);
+  if(op)
+  {
+    push_operation_on_stack(&table->undo_stack_top, op);
+  }
+  else
+  {
+    printf("Unable to record REMOVE operation!\n");
+  }
+
+  // // remove all pieces lying between starting, ending pieces
+  // // adjust length of starting piece
+  // // adjust starting_position of ending piece
+  // if(starting_piece->next != ending_piece)
+  // {
+  //   if(!remove_slice_between_pieces(starting_piece, ending_piece))
+  //   {
+  //     return false;
+  //   }
+  // }
+
+  // starting_piece->length = starting_piece_offset;
+  // if(starting_piece->length == 0)
+  // {
+  //   remove_piece_from_table(table, starting_piece);
+  // }
+  // ending_piece->start_position = ending_piece_offset;
 
   return true;
 }
