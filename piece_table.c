@@ -292,7 +292,6 @@ bool push_operation_on_stack(operation** stack_top, operation* op)
   if(!*stack_top)
   {
     *stack_top = op;
-    // op->next = NULL;
     return true;
   }
 
@@ -1160,16 +1159,6 @@ bool piece_table_undo(piece_table* table)
   {
     op->prev_piece->next = op->next_piece;
   }
-
-  // if(!push_operation_on_stack(&table->redo_stack_top, table->undo_stack_top))
-  // {
-  //   return false;
-  // }
-
-  // if(!pop_operation_from_stack(&table->undo_stack_top))
-  // {
-  //   return false;
-  // }
 
   if(!move_operation_from_undo_to_redo_stack(table))
   {
