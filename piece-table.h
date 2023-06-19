@@ -32,6 +32,7 @@ extern "C"
                            const unsigned int length,
                            const char* string);
   bool piece_table_undo(piece_table* table);
+  bool piece_table_redo(piece_table* table);
   bool piece_table_free(piece_table* table);
 
   /// Loggers

@@ -68,6 +68,16 @@ int main()
   printf("Full Buffer: %s\n", full_buffer);
   free(full_buffer);
 
+  if(!piece_table_redo(pt))
+  {
+    printf("Unable to redo!\n");
+    return 1;
+  }
+  piece_table_log(pt);
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   // if(!piece_table_remove(pt, 0, 8))
   // {
   //   printf("Unable to remove!\n");

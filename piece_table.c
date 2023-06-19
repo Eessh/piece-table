@@ -1021,6 +1021,40 @@ bool piece_table_undo(piece_table* table)
   return true;
 }
 
+bool piece_table_redo(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->redo_stack_top)
+  {
+    return false;
+  }
+
+  // inserting pieces from start_piece to end_piece
+  // between prev_piece and next_piece
+
+  operation* op = table->redo_stack_top;
+  if(!op->prev_piece)
+  {
+    table->pieces_head = op->start_piece;
+  }
+  else
+  {
+    op->prev_piece->next = op->start_piece;
+    op->end_piece->next = op->next_piece;
+  }
+
+  if(!move_operation_from_redo_to_undo_stack(table))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool piece_table_free(piece_table* table)
 {
   if(!table)
