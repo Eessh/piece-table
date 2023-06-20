@@ -1,5 +1,5 @@
 # piece-table
-Piece Table text buffer library for C/C++ projects.
+A simple text buffer using [Piece Table](https://en.wikipedia.org/wiki/Piece_table) as the underlying data structure.
 
 ### Usage
 ```c
