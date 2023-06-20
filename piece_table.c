@@ -1235,13 +1235,13 @@ bool piece_table_free(piece_table* table)
 }
 
 /// Loggers Implementation
-void piece_table_log(piece_table* table)
+bool piece_table_log(piece_table* table)
 {
   if(!table)
   {
     printf(
       "Error: piece_table_log(): can't log piece_table that points to NULL!");
-    return;
+    return false;
   }
 
   // logging buffers
@@ -1321,4 +1321,6 @@ void piece_table_log(piece_table* table)
     }
     printf("\n\t]\n}\n");
   }
+
+  return true;
 }

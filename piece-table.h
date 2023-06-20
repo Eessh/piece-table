@@ -36,7 +36,7 @@ extern "C"
   bool piece_table_free(piece_table* table);
 
   /// Loggers
-  void piece_table_log(piece_table* table);
+  bool piece_table_log(piece_table* table);
 
 #ifdef __cplusplus
 }
