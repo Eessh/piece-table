@@ -489,11 +489,16 @@ bool piece_table_insert(piece_table* table,
   }
   else
   {
-    table->add_buffer =
+    char* temp =
       (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
     memcpy(table->add_buffer + add_buffer_length,
            string,
            sizeof(char) * string_length);
+    if(!temp)
+    {
+      return false;
+    }
+    table->add_buffer = temp;
     table->add_buffer[new_add_buffer_length] = '\0';
   }
 
