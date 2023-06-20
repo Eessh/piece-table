@@ -482,6 +482,10 @@ bool piece_table_insert(piece_table* table,
   if(!table->add_buffer)
   {
     table->add_buffer = strdup(string);
+    if(!table->add_buffer)
+    {
+      return false;
+    }
   }
   else
   {
