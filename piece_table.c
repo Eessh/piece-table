@@ -434,7 +434,16 @@ piece_table* piece_table_from_string(const char* string)
   }
 
   table->original_buffer = strdup(string);
+  if(!table->original_buffer)
+  {
+    return NULL;
+  }
+
   table->pieces_head = piece_new(ORIGINAL, 0, strlen(string));
+  if(!table->pieces_head)
+  {
+    return NULL;
+  }
 
   return table;
 }
