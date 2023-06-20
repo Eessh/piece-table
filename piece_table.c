@@ -1042,6 +1042,12 @@ char* piece_table_get_line(const piece_table* table, const unsigned int line)
     }
   }
 
+  if(line > new_line_tokens + 1)
+  {
+    // line is out of bounds
+    return NULL;
+  }
+
   if(!found_ending_piece)
   {
     // line is the last line of buffer
