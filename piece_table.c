@@ -46,6 +46,9 @@ struct piece_table
 
   operation* undo_stack_top;
   operation* redo_stack_top;
+
+  piece* piece_with_micro_inserts;
+  operation* undo_with_micro_inserts;
 };
 
 /// Piece API
@@ -416,6 +419,8 @@ piece_table* piece_table_new()
   table->pieces_head = NULL;
   table->undo_stack_top = NULL;
   table->redo_stack_top = NULL;
+  table->piece_with_micro_inserts = NULL;
+  table->undo_with_micro_inserts = NULL;
 
   return table;
 }
@@ -593,6 +598,137 @@ bool piece_table_insert(piece_table* table,
 
   return true;
 }
+
+bool piece_table_start_micro_inserts(piece_table* table,
+                                     const unsigned int position)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  unsigned int remaining_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(remaining_offset <= p->length)
+    {
+      break;
+    }
+    remaining_offset -= p->length;
+    p = p->next;
+  }
+
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
+
+  unsigned int add_buffer_length =
+    table->add_buffer ? strlen(table->add_buffer) : 0;
+
+  // If we are inserting at end of any piece
+  if(remaining_offset == p->length)
+  {
+    // inserting at end
+    // just increase the length of the piece
+    // p->length += strlen(string);
+    // or insert a new piece (works best for undo & redo)
+    if(!insert_piece_after(piece_new(ADD, add_buffer_length, 0), p))
+    {
+      return false;
+    }
+
+    // inserting undo operation for this insert
+    operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+    if(op)
+    {
+      table->piece_with_micro_inserts = p->next;
+      table->undo_with_micro_inserts = op;
+      // push_operation_on_stack(&table->undo_stack_top, op);
+    }
+    else
+    {
+      printf("Unable to record INSERT operation onto undo stack");
+    }
+
+    return true;
+  }
+
+  if(remaining_offset == 0)
+  {
+    // insert new ADD buffer piece before current piece
+    piece* new_p = piece_new(ADD, add_buffer_length, 0);
+    new_p->next = p;
+    if(p == table->pieces_head)
+    {
+      table->pieces_head = new_p;
+
+      // inserting undo operation for this insert
+      operation* op = operation_new(INSERT, NULL, new_p, new_p, p);
+      if(op)
+      {
+        table->piece_with_micro_inserts = new_p;
+        table->undo_with_micro_inserts = op;
+        // push_operation_on_stack(&table->undo_stack_top, op);
+      }
+      else
+      {
+        printf("Unable to record INSERT operation onto undo stack");
+      }
+
+      return true;
+    }
+    piece* temp = table->pieces_head;
+    while(temp->next != p)
+    {
+      temp = temp->next;
+    }
+    temp->next = new_p;
+
+    // inserting undo operation for this insert
+    operation* op = operation_new(INSERT, temp, new_p, new_p, p);
+    if(op)
+    {
+      table->piece_with_micro_inserts = new_p;
+      table->undo_with_micro_inserts = op;
+      // push_operation_on_stack(&table->undo_stack_top, op);
+    }
+    else
+    {
+      printf("Unable to record INSERT operation onto undo stack");
+    }
+
+    return true;
+  }
+
+  if(!split_piece_at(p, remaining_offset))
+  {
+    return false;
+  }
+  if(!insert_piece_after(piece_new(ADD, add_buffer_length, 0), p))
+  {
+    return false;
+  }
+
+  // inserting undo operation for this insert
+  operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+  if(op)
+  {
+    table->piece_with_micro_inserts = p->next;
+    table->undo_with_micro_inserts = op;
+    // push_operation_on_stack(&table->undo_stack_top, op);
+  }
+  else
+  {
+    printf("Unable to record INSERT operation onto undo stack");
+  }
+
+  return true;
+}
+bool piece_table_micro_insert(piece_table* table, const char* string);
+bool piece_table_stop_micro_insert(piece_table* table);
 
 bool piece_table_remove(piece_table* table,
                         const unsigned int position,

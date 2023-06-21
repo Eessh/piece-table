@@ -19,6 +19,11 @@ extern "C"
                           const unsigned int position,
                           const char* string);
 
+  bool piece_table_start_micro_inserts(piece_table* table,
+                                       const unsigned int position);
+  bool piece_table_micro_insert(piece_table* table, const char* string);
+  bool piece_table_stop_micro_insert(piece_table* table);
+
   bool piece_table_remove(piece_table* table,
                           const unsigned int position,
                           const unsigned int length);
