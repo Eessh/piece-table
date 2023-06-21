@@ -727,7 +727,61 @@ bool piece_table_start_micro_inserts(piece_table* table,
 
   return true;
 }
-bool piece_table_micro_insert(piece_table* table, const char* string);
+
+bool piece_table_micro_insert(piece_table* table, const char* string)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!string)
+  {
+    return false;
+  }
+
+  if(!table->piece_with_micro_inserts)
+  {
+    return false;
+  }
+
+  if(!table->undo_with_micro_inserts)
+  {
+    return false;
+  }
+
+  unsigned int add_buffer_length =
+    table->add_buffer ? strlen(table->add_buffer) : 0;
+  unsigned int string_length = strlen(string);
+  unsigned int new_add_buffer_length = add_buffer_length + string_length;
+
+  if(!table->add_buffer)
+  {
+    table->add_buffer = strdup(string);
+    if(!table->add_buffer)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    char* temp =
+      (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
+    memcpy(table->add_buffer + add_buffer_length,
+           string,
+           sizeof(char) * string_length);
+    if(!temp)
+    {
+      return false;
+    }
+    table->add_buffer = temp;
+    table->add_buffer[new_add_buffer_length] = '\0';
+  }
+
+  table->piece_with_micro_inserts->length += string_length;
+
+  return true;
+}
 bool piece_table_stop_micro_insert(piece_table* table);
 
 bool piece_table_remove(piece_table* table,
