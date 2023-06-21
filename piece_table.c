@@ -782,7 +782,31 @@ bool piece_table_micro_insert(piece_table* table, const char* string)
 
   return true;
 }
-bool piece_table_stop_micro_insert(piece_table* table);
+
+bool piece_table_stop_micro_insert(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->undo_with_micro_inserts)
+  {
+    return false;
+  }
+
+  if(!push_operation_on_stack(&table->undo_stack_top,
+                              table->undo_with_micro_inserts))
+  {
+    return false;
+  }
+
+  // Clearing micro insert session
+  table->piece_with_micro_inserts = NULL;
+  table->undo_with_micro_inserts = NULL;
+
+  return true;
+}
 
 bool piece_table_remove(piece_table* table,
                         const unsigned int position,
