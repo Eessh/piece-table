@@ -783,7 +783,7 @@ bool piece_table_micro_insert(piece_table* table, const char* string)
   return true;
 }
 
-bool piece_table_stop_micro_insert(piece_table* table)
+bool piece_table_stop_micro_inserts(piece_table* table)
 {
   if(!table)
   {
