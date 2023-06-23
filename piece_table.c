@@ -86,10 +86,21 @@ operation* operation_new(const operation_type type,
 bool operation_free(operation* op);
 
 /// MemSafe Operation API
+
+/// @brief Creates a new memsafe operation.
+/// @param type Type of operation done.
+/// @param start_position Start position of the operation.
+/// @param length Length of string or replaced portion in operation.
+/// @param string String inserted or replaced string in operation
+/// @return Returns new memsafe operation with given parameters.
 memsafe_operation* memsafe_operation_new(const operation_type type,
                                          const unsigned int start_position,
                                          const unsigned int length,
                                          const char* string);
+
+/// @brief Frees memory of memsafe operation.
+/// @param op Memsafe operation to free.
+/// @return Returns false if operation passed is NULL.
 bool memsafe_operation_free(memsafe_operation* op);
 
 /// MemSafe Operations Helpers
@@ -117,7 +128,7 @@ bool insert_piece_after(piece* p, piece* after);
 bool split_piece_at(piece* p, const unsigned int offset);
 bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
 bool remove_piece_from_table(piece_table* table, piece* p);
-const char* operation_to_string(const operation* op);
+const char* operation_to_string(const operation_type type);
 bool push_operation_on_stack(operation** stack_top, operation* op);
 bool pop_operation_from_stack(operation** stack_top);
 bool move_operation_from_undo_to_redo_stack(piece_table* table);
@@ -444,14 +455,9 @@ bool remove_piece_from_table(piece_table* table, piece* p)
   return true;
 }
 
-const char* operation_to_string(const operation* op)
+const char* operation_to_string(const operation_type type)
 {
-  if(!op)
-  {
-    return NULL;
-  }
-
-  switch(op->type)
+  switch(type)
   {
   case INSERT:
     return "INSERT";
@@ -795,7 +801,7 @@ bool piece_table_insert(piece_table* table,
   memsafe_operation* msop = memsafe_operation_new(INSERT, position, 0, string);
   if(msop)
   {
-    // TODO: push memsafe operation on stack
+    push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
   }
   else
   {
@@ -1752,11 +1758,11 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t%s,", operation_to_string(op));
+        printf("\n\t\t%s,", operation_to_string(op->type));
       }
       else
       {
-        printf("\n\t\t%s", operation_to_string(op));
+        printf("\n\t\t%s", operation_to_string(op->type));
       }
       op = op->next;
     }
@@ -1767,7 +1773,7 @@ bool piece_table_log(piece_table* table)
   printf("\n\tredo_stack: [");
   if(!table->redo_stack_top)
   {
-    printf("]\n}\n");
+    printf("],");
   }
   else
   {
@@ -1776,11 +1782,75 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t%s,", operation_to_string(op));
+        printf("\n\t\t%s,", operation_to_string(op->type));
       }
       else
       {
-        printf("\n\t\t%s", operation_to_string(op));
+        printf("\n\t\t%s", operation_to_string(op->type));
+      }
+      op = op->next;
+    }
+    printf("\n\t],");
+  }
+
+  // logging memsafe undo stack
+  printf("\n\tmemsafe_undo_stack: [");
+  if(!table->memsafe_undo_stack_top)
+  {
+    printf("],");
+  }
+  else
+  {
+    memsafe_operation* op = table->memsafe_undo_stack_top;
+    while(op)
+    {
+      if(op->next)
+      {
+        printf("\n\t\t{ %s, %d, %d, %s },",
+               operation_to_string(op->type),
+               op->start_position,
+               op->length,
+               op->string);
+      }
+      else
+      {
+        printf("\n\t\t{ %s, %d, %d, %s }",
+               operation_to_string(op->type),
+               op->start_position,
+               op->length,
+               op->string);
+      }
+      op = op->next;
+    }
+    printf("\n\t],");
+  }
+
+  // logging memsafe redo stack
+  printf("\n\tmemsafe_redo_stack: [");
+  if(!table->memsafe_redo_stack_top)
+  {
+    printf("]\n}\n");
+  }
+  else
+  {
+    memsafe_operation* op = table->memsafe_redo_stack_top;
+    while(op)
+    {
+      if(op->next)
+      {
+        printf("\n\t\t{ %s, %d, %d, %s },",
+               operation_to_string(op->type),
+               op->start_position,
+               op->length,
+               op->string);
+      }
+      else
+      {
+        printf("\n\t\t{ %s, %d, %d, %s }",
+               operation_to_string(op->type),
+               op->start_position,
+               op->length,
+               op->string);
       }
       op = op->next;
     }
