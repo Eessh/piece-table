@@ -92,6 +92,25 @@ memsafe_operation* memsafe_operation_new(const operation_type type,
                                          const char* string);
 bool memsafe_operation_free(memsafe_operation* op);
 
+/// MemSafe Operations Helpers
+
+/// @brief Pushes memsafe operation on memsafe operation stack.
+/// @param stack_top MemSafe operation stack top.
+/// @param op MemSafe operation.
+/// @return Returns false if something goes wrong.
+bool push_memsafe_operation_on_stack(memsafe_operation** stack_top,
+                                     memsafe_operation* op);
+
+/// @brief Pops memsafe operation from memsafe operation stack.
+/// @param stack_top MemSafe operation stack top.
+/// @return Returns false if stack is empty.
+bool pop_memsafe_operation_from_stack(memsafe_operation** stack_top);
+
+/// @brief Frees memsafe operation stack recursively.
+/// @param op MemSafe operation stack top.
+/// @return Returns false if something goes wrong.
+bool recursively_free_memsafe_operation_stack(memsafe_operation* op);
+
 /// Helpers
 bool recursively_free_pieces(piece* p);
 bool insert_piece_after(piece* p, piece* after);
@@ -104,7 +123,6 @@ bool pop_operation_from_stack(operation** stack_top);
 bool move_operation_from_undo_to_redo_stack(piece_table* table);
 bool move_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_operation_stack(operation* op);
-bool recursively_free_memsafe_operation_stack(memsafe_operation* op);
 
 /// Piece API Implementation
 piece* piece_new(const buffer_type buffer,
@@ -236,6 +254,73 @@ bool memsafe_operation_free(memsafe_operation* op)
   }
 
   free(op);
+  return true;
+}
+
+/// MemSafe Operations Helpers API Implementation
+bool push_memsafe_operation_on_stack(memsafe_operation** stack_top,
+                                     memsafe_operation* op)
+{
+  if(!stack_top)
+  {
+    return false;
+  }
+
+  if(!*stack_top)
+  {
+    *stack_top = op;
+    op->next = NULL;
+    return true;
+  }
+
+  op->next = *stack_top;
+  *stack_top = op;
+
+  return true;
+}
+
+bool pop_memsafe_operation_from_stack(memsafe_operation** stack_top)
+{
+  if(!stack_top)
+  {
+    return false;
+  }
+
+  if(!*stack_top)
+  {
+    return false;
+  }
+
+  if((*stack_top)->next == NULL)
+  {
+    memsafe_operation_free(*stack_top);
+    *stack_top = NULL;
+  }
+
+  memsafe_operation* temp = (*stack_top)->next;
+  memsafe_operation_free(*stack_top);
+  *stack_top = temp;
+
+  return true;
+}
+
+bool recursively_free_memsafe_operation_stack(memsafe_operation* op)
+{
+  if(!op)
+  {
+    return false;
+  }
+
+  if(op->next)
+  {
+    if(!recursively_free_memsafe_operation_stack(op->next))
+    {
+      return false;
+    }
+  }
+
+  memsafe_operation_free(op);
+
   return true;
 }
 
@@ -502,26 +587,6 @@ bool recursively_free_operation_stack(operation* op)
   return true;
 }
 
-bool recursively_free_memsafe_operation_stack(memsafe_operation* op)
-{
-  if(!op)
-  {
-    return false;
-  }
-
-  if(op->next)
-  {
-    if(!recursively_free_memsafe_operation_stack(op->next))
-    {
-      return false;
-    }
-  }
-
-  memsafe_operation_free(op);
-
-  return true;
-}
-
 /// Piece Table API Implementation
 piece_table* piece_table_new()
 {
@@ -717,6 +782,20 @@ bool piece_table_insert(piece_table* table,
   if(op)
   {
     push_operation_on_stack(&table->undo_stack_top, op);
+  }
+  else
+  {
+    printf("Unable to record INSERT operation onto undo stack");
+  }
+
+  // inserting memsafe operation
+  // as it is based on commad approach
+  // we don't care about how the pieces are mutated
+  // we just record the operation done
+  memsafe_operation* msop = memsafe_operation_new(INSERT, position, 0, string);
+  if(msop)
+  {
+    // TODO: push memsafe operation on stack
   }
   else
   {
