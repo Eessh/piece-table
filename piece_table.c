@@ -138,6 +138,37 @@ bool operation_free(operation* op)
     return false;
   }
 
+  // Memory leaks from virtually removed pieces
+  // some pieces are freed beforehand in recursively_free_pieces()
+  // so freeing pieces here may result in double-free
+  // as undo, redo operations are containing weak-pointers to actual pieces
+  // TODO: New branch for memsafe undo & redo operations
+  if(op->prev_piece)
+  {
+    piece_free(op->prev_piece);
+  }
+  if(op->next_piece)
+  {
+    piece_free(op->next_piece);
+  }
+  if(op->start_piece)
+  {
+    if(op->start_piece == op->end_piece)
+    {
+      piece_free(op->start_piece);
+    }
+    else
+    {
+      op->end_piece->next = NULL;
+      if(!recursively_free_pieces(op->start_piece))
+      {
+        return false;
+      }
+    }
+    op->start_piece = NULL;
+    op->end_piece = NULL;
+  }
+
   free(op);
   return true;
 }
@@ -1098,7 +1129,8 @@ char* piece_table_get_slice(const piece_table* table,
     starting_piece_offset -= p->length;
     p = p->next;
   }
-  if (!p) {
+  if(!p)
+  {
     // starting position out of bounds
     return NULL;
   }
@@ -1115,7 +1147,8 @@ char* piece_table_get_slice(const piece_table* table,
     ending_piece_offset -= p->length;
     p = p->next;
   }
-  if (!p) {
+  if(!p)
+  {
     // starting position or length out of bounds
     return NULL;
   }
@@ -1182,7 +1215,6 @@ char* piece_table_to_string(const piece_table* table)
     string_length += p->length;
     p = p->next;
   }
-  printf("string_length: %d\n", string_length);
 
   char* string = (char*)calloc((string_length + 1), sizeof(char));
   if(!string)
