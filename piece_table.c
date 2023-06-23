@@ -37,6 +37,10 @@ typedef struct operation
   struct operation* next;
 } operation;
 
+// These operations are Command-Based
+// so every time the undo or redo operation is executed
+// the piece_table struct is mutated according to the
+// type of operation
 typedef struct memsafe_operation
 {
   operation_type type;
@@ -44,6 +48,8 @@ typedef struct memsafe_operation
   unsigned int start_position;
   unsigned int length;
   char* string;
+
+  struct memsafe_operation* next;
 } memsafe_operation;
 
 struct piece_table
@@ -53,8 +59,13 @@ struct piece_table
 
   piece* pieces_head;
 
+  // depreciated
   operation* undo_stack_top;
   operation* redo_stack_top;
+
+  // new operations
+  memsafe_operation* memsafe_undo_stack_top;
+  memsafe_operation* memsafe_redo_stack_top;
 
   piece* piece_with_micro_inserts;
   operation* undo_with_micro_inserts;
@@ -93,6 +104,7 @@ bool pop_operation_from_stack(operation** stack_top);
 bool move_operation_from_undo_to_redo_stack(piece_table* table);
 bool move_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_operation_stack(operation* op);
+bool recursively_free_memsafe_operation_stack(memsafe_operation* op);
 
 /// Piece API Implementation
 piece* piece_new(const buffer_type buffer,
@@ -206,6 +218,7 @@ memsafe_operation* memsafe_operation_new(const operation_type type,
   op->start_position = start_position;
   op->length = length;
   op->string = string;
+  op->next = NULL;
 
   return op;
 }
@@ -489,6 +502,26 @@ bool recursively_free_operation_stack(operation* op)
   return true;
 }
 
+bool recursively_free_memsafe_operation_stack(memsafe_operation* op)
+{
+  if(!op)
+  {
+    return false;
+  }
+
+  if(op->next)
+  {
+    if(!recursively_free_memsafe_operation_stack(op->next))
+    {
+      return false;
+    }
+  }
+
+  memsafe_operation_free(op);
+
+  return true;
+}
+
 /// Piece Table API Implementation
 piece_table* piece_table_new()
 {
@@ -501,8 +534,12 @@ piece_table* piece_table_new()
   table->original_buffer = NULL;
   table->add_buffer = NULL;
   table->pieces_head = NULL;
+  // depreciated
   table->undo_stack_top = NULL;
   table->redo_stack_top = NULL;
+  // new operations
+  table->memsafe_undo_stack_top = NULL;
+  table->memsafe_redo_stack_top = NULL;
   table->piece_with_micro_inserts = NULL;
   table->undo_with_micro_inserts = NULL;
 
@@ -1548,14 +1585,26 @@ bool piece_table_free(piece_table* table)
     return false;
   }
 
+  // depreicated
   if(table->undo_stack_top &&
      !recursively_free_operation_stack(table->undo_stack_top))
   {
     return false;
   }
-
   if(table->redo_stack_top &&
      !recursively_free_operation_stack(table->redo_stack_top))
+  {
+    return false;
+  }
+
+  // new stuff
+  if(table->memsafe_undo_stack_top &&
+     !recursively_free_memsafe_operation_stack(table->memsafe_undo_stack_top))
+  {
+    return false;
+  }
+  if(table->memsafe_redo_stack_top &&
+     !recursively_free_memsafe_operation_stack(table->memsafe_redo_stack_top))
   {
     return false;
   }
