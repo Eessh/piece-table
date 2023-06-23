@@ -37,6 +37,15 @@ typedef struct operation
   struct operation* next;
 } operation;
 
+typedef struct memsafe_operation
+{
+  operation_type type;
+
+  unsigned int start_position;
+  unsigned int length;
+  char* string;
+} memsafe_operation;
+
 struct piece_table
 {
   char* original_buffer;
@@ -64,6 +73,13 @@ operation* operation_new(const operation_type type,
                          piece* end_piece,
                          piece* next_piece);
 bool operation_free(operation* op);
+
+/// MemSafe Operation API
+memsafe_operation* memsafe_operation_new(const operation_type type,
+                                         const unsigned int start_position,
+                                         const unsigned int length,
+                                         const char* string);
+bool memsafe_operation_free(memsafe_operation* op);
 
 /// Helpers
 bool recursively_free_pieces(piece* p);
@@ -167,6 +183,43 @@ bool operation_free(operation* op)
     }
     op->start_piece = NULL;
     op->end_piece = NULL;
+  }
+
+  free(op);
+  return true;
+}
+
+/// MemSafe Operation API Implementation
+memsafe_operation* memsafe_operation_new(const operation_type type,
+                                         const unsigned int start_position,
+                                         const unsigned int length,
+                                         const char* string)
+{
+  memsafe_operation* op =
+    (memsafe_operation*)calloc(1, sizeof(memsafe_operation));
+  if(!op)
+  {
+    return NULL;
+  }
+
+  op->type = type;
+  op->start_position = start_position;
+  op->length = length;
+  op->string = string;
+
+  return op;
+}
+
+bool memsafe_operation_free(memsafe_operation* op)
+{
+  if(!op)
+  {
+    return false;
+  }
+
+  if(op->string)
+  {
+    free(op->string);
   }
 
   free(op);
