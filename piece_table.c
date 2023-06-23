@@ -482,7 +482,7 @@ bool piece_table_insert(piece_table* table,
   unsigned int add_buffer_length =
     table->add_buffer ? strlen(table->add_buffer) : 0;
   unsigned int string_length = strlen(string);
-  unsigned int new_add_buffer_length = add_buffer_length + string_length;
+  unsigned int new_add_buffer_length = add_buffer_length + string_length + 1;
 
   if(!table->add_buffer)
   {
@@ -496,15 +496,15 @@ bool piece_table_insert(piece_table* table,
   {
     char* temp =
       (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
-    memcpy(table->add_buffer + add_buffer_length,
-           string,
-           sizeof(char) * string_length);
     if(!temp)
     {
       return false;
     }
     table->add_buffer = temp;
-    table->add_buffer[new_add_buffer_length] = '\0';
+    memcpy(table->add_buffer + add_buffer_length + 1,
+           string,
+           sizeof(char) * string_length);
+    table->add_buffer[new_add_buffer_length - 1] = '\0';
   }
 
   // If we are inserting at end of any piece
