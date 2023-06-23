@@ -600,6 +600,12 @@ bool piece_table_insert(piece_table* table,
     p = p->next;
   }
 
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
+
   unsigned int add_buffer_length =
     table->add_buffer ? strlen(table->add_buffer) : 0;
   unsigned int string_length = strlen(string);
