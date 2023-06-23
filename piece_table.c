@@ -1098,6 +1098,10 @@ char* piece_table_get_slice(const piece_table* table,
     starting_piece_offset -= p->length;
     p = p->next;
   }
+  if (!p) {
+    // starting position out of bounds
+    return NULL;
+  }
   starting_piece = p;
 
   p = table->pieces_head;
@@ -1110,6 +1114,10 @@ char* piece_table_get_slice(const piece_table* table,
     }
     ending_piece_offset -= p->length;
     p = p->next;
+  }
+  if (!p) {
+    // starting position or length out of bounds
+    return NULL;
   }
   ending_piece = p;
 
