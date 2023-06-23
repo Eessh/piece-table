@@ -117,6 +117,16 @@ bool push_memsafe_operation_on_stack(memsafe_operation** stack_top,
 /// @return Returns false if stack is empty.
 bool pop_memsafe_operation_from_stack(memsafe_operation** stack_top);
 
+/// @brief Moves top memsafe operation from undo to redo stack of piece table.
+/// @param table Pointer to piece table.
+/// @return Returns false if something goes wrong.
+bool move_memsafe_operation_from_undo_to_redo_stack(piece_table* table);
+
+/// @brief Moves top memsafe operation from redo to undo stack of piece table.
+/// @param table Pointer to piece table.
+/// @return Returns false if something goes wrong.
+bool move_memsafe_operation_from_redo_to_undo_stack(piece_table* table);
+
 /// @brief Frees memsafe operation stack recursively.
 /// @param op MemSafe operation stack top.
 /// @return Returns false if something goes wrong.
@@ -246,7 +256,19 @@ memsafe_operation* memsafe_operation_new(const operation_type type,
   op->type = type;
   op->start_position = start_position;
   op->length = length;
-  op->string = string;
+  if(!string)
+  {
+    op->string = NULL;
+  }
+  else
+  {
+    op->string = strdup(string);
+    if(!op->string)
+    {
+      free(op);
+      return NULL;
+    }
+  }
   op->next = NULL;
 
   return op;
@@ -311,6 +333,62 @@ bool pop_memsafe_operation_from_stack(memsafe_operation** stack_top)
   memsafe_operation* temp = (*stack_top)->next;
   memsafe_operation_free(*stack_top);
   *stack_top = temp;
+
+  return true;
+}
+
+bool move_memsafe_operation_from_undo_to_redo_stack(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->memsafe_undo_stack_top)
+  {
+    return false;
+  }
+
+  memsafe_operation* op = table->memsafe_undo_stack_top;
+  table->memsafe_undo_stack_top = op->next;
+
+  if(!table->memsafe_redo_stack_top)
+  {
+    table->memsafe_redo_stack_top = op;
+    op->next = NULL;
+    return true;
+  }
+
+  op->next = table->memsafe_redo_stack_top;
+  table->memsafe_redo_stack_top = op;
+
+  return true;
+}
+
+bool move_memsafe_operation_from_redo_to_undo_stack(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->memsafe_redo_stack_top)
+  {
+    return false;
+  }
+
+  memsafe_operation* op = table->memsafe_redo_stack_top;
+  table->memsafe_redo_stack_top = op->next;
+
+  if(!table->memsafe_undo_stack_top)
+  {
+    table->memsafe_undo_stack_top = op;
+    op->next = NULL;
+    return true;
+  }
+
+  op->next = table->memsafe_undo_stack_top;
+  table->memsafe_undo_stack_top = op;
 
   return true;
 }
@@ -677,6 +755,20 @@ bool piece_table_insert(piece_table* table,
     return false;
   }
 
+  // inserting memsafe operation
+  // as it is based on commad approach
+  // we don't care about how the pieces are mutated
+  // we just record the operation done
+  memsafe_operation* msop = memsafe_operation_new(INSERT, position, 0, string);
+  if(msop)
+  {
+    push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
+  }
+  else
+  {
+    printf("Unable to record INSERT operation onto undo stack");
+  }
+
   unsigned int add_buffer_length =
     table->add_buffer ? strlen(table->add_buffer) : 0;
   unsigned int string_length = strlen(string);
@@ -718,15 +810,15 @@ bool piece_table_insert(piece_table* table,
     }
 
     // inserting undo operation for this insert
-    operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
-    if(op)
-    {
-      push_operation_on_stack(&table->undo_stack_top, op);
-    }
-    else
-    {
-      printf("Unable to record INSERT operation onto undo stack");
-    }
+    // operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+    // if(op)
+    // {
+    //   push_operation_on_stack(&table->undo_stack_top, op);
+    // }
+    // else
+    // {
+    //   printf("Unable to record INSERT operation onto undo stack");
+    // }
 
     return true;
   }
@@ -741,15 +833,15 @@ bool piece_table_insert(piece_table* table,
       table->pieces_head = new_p;
 
       // inserting undo operation for this insert
-      operation* op = operation_new(INSERT, NULL, new_p, new_p, p);
-      if(op)
-      {
-        push_operation_on_stack(&table->undo_stack_top, op);
-      }
-      else
-      {
-        printf("Unable to record INSERT operation onto undo stack");
-      }
+      // operation* op = operation_new(INSERT, NULL, new_p, new_p, p);
+      // if(op)
+      // {
+      //   push_operation_on_stack(&table->undo_stack_top, op);
+      // }
+      // else
+      // {
+      //   printf("Unable to record INSERT operation onto undo stack");
+      // }
 
       return true;
     }
@@ -761,15 +853,15 @@ bool piece_table_insert(piece_table* table,
     temp->next = new_p;
 
     // inserting undo operation for this insert
-    operation* op = operation_new(INSERT, temp, new_p, new_p, p);
-    if(op)
-    {
-      push_operation_on_stack(&table->undo_stack_top, op);
-    }
-    else
-    {
-      printf("Unable to record INSERT operation onto undo stack");
-    }
+    // operation* op = operation_new(INSERT, temp, new_p, new_p, p);
+    // if(op)
+    // {
+    //   push_operation_on_stack(&table->undo_stack_top, op);
+    // }
+    // else
+    // {
+    //   printf("Unable to record INSERT operation onto undo stack");
+    // }
 
     return true;
   }
@@ -784,29 +876,15 @@ bool piece_table_insert(piece_table* table,
   }
 
   // inserting undo operation for this insert
-  operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
-  if(op)
-  {
-    push_operation_on_stack(&table->undo_stack_top, op);
-  }
-  else
-  {
-    printf("Unable to record INSERT operation onto undo stack");
-  }
-
-  // inserting memsafe operation
-  // as it is based on commad approach
-  // we don't care about how the pieces are mutated
-  // we just record the operation done
-  memsafe_operation* msop = memsafe_operation_new(INSERT, position, 0, string);
-  if(msop)
-  {
-    push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
-  }
-  else
-  {
-    printf("Unable to record INSERT operation onto undo stack");
-  }
+  // operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
+  // if(op)
+  // {
+  //   push_operation_on_stack(&table->undo_stack_top, op);
+  // }
+  // else
+  // {
+  //   printf("Unable to record INSERT operation onto undo stack");
+  // }
 
   return true;
 }
@@ -1044,6 +1122,11 @@ bool piece_table_remove(piece_table* table,
     starting_piece_offset -= p->length;
     p = p->next;
   }
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
   starting_piece = p;
 
   p = table->pieces_head;
@@ -1056,6 +1139,11 @@ bool piece_table_remove(piece_table* table,
     }
     ending_piece_offset -= p->length;
     p = p->next;
+  }
+  if(!p)
+  {
+    // position or length out of bounds
+    return false;
   }
   ending_piece = p;
 
@@ -1661,6 +1749,194 @@ bool piece_table_redo(piece_table* table)
   return true;
 }
 
+bool piece_table_memsafe_remove(piece_table* table,
+                                const unsigned int position,
+                                const unsigned int length)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  piece* starting_piece = NULL;
+  piece* ending_piece = NULL;
+  unsigned int starting_piece_offset = 0, ending_piece_offset = 0;
+
+  starting_piece_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(starting_piece_offset <= p->length)
+    {
+      break;
+    }
+    starting_piece_offset -= p->length;
+    p = p->next;
+  }
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
+  starting_piece = p;
+
+  p = table->pieces_head;
+  ending_piece_offset = position + length;
+  while(p)
+  {
+    if(ending_piece_offset <= p->length)
+    {
+      break;
+    }
+    ending_piece_offset -= p->length;
+    p = p->next;
+  }
+  if(!p)
+  {
+    // position or length out of bounds
+    return false;
+  }
+  ending_piece = p;
+
+  printf("HEHEHEEEHEHHEEHE\n");
+  memsafe_operation* msop =
+    memsafe_operation_new(REMOVE, position, length, NULL);
+  if(msop)
+  {
+    push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
+  }
+  else
+  {
+    printf("Unable to record REMOVE operation!\n");
+  }
+
+  // removal happening in same piece
+  if(starting_piece == ending_piece)
+  {
+    // removal happening at the end
+    if(starting_piece_offset + length == p->length)
+    {
+      starting_piece->length -= length;
+      return true;
+    }
+
+    // we need to split the node at starting_piece_offset+length
+    // then adjust the length of the current piece
+    // adjusting length, doesn't work for undo & redo
+    // we need to split twice at starting_offset, starting_offset+length
+    // the virtuall remove the middle piece
+    // by connecting the starting end ending pieces among splitted pieces.
+    if(!split_piece_at(starting_piece, starting_piece_offset + length))
+    {
+      return false;
+    }
+    // starting_piece->length -= length;
+    if(!split_piece_at(starting_piece, starting_piece_offset))
+    {
+      return false;
+    }
+
+    remove_piece_from_table(table, starting_piece->next);
+
+    return true;
+  }
+
+  // here arise two cases:
+  // - starting and ending pieces are next to each other
+  // - some piece exist between starting and ending pieces
+  // in either case we could just split pieces as:
+  // - starting piece at starting piece offset (resulting in 1, 2)
+  // - ending piece at ending piece offset (resulting in 3, 4)
+  // then virtually remove pieces between: 1, 4
+  // this removes complexity of handling pieces between 2, 3
+
+  if(starting_piece_offset != starting_piece->length &&
+     !split_piece_at(starting_piece, starting_piece_offset))
+  {
+    return false;
+  }
+  // if(starting_piece->next->length == 0)
+  // {
+  //   remove_piece_from_table(table, starting_piece->next);
+  // }
+  if(ending_piece_offset != ending_piece->length &&
+     !split_piece_at(ending_piece, ending_piece_offset))
+  {
+    printf("ending_piece_offset = %d, ending_piece_length = %d\n",
+           ending_piece_offset,
+           ending_piece->length);
+    return false;
+  }
+  // if(ending_piece->next->length == 0)
+  // {
+  //   remove_piece_from_table(table, ending_piece->next);
+  // }
+
+  if(starting_piece->next == ending_piece)
+  {
+    remove_piece_from_table(table, ending_piece);
+    return true;
+  }
+
+  p = starting_piece->next;
+  piece* pnext = NULL;
+  while(p != ending_piece)
+  {
+    piece_free(pnext);
+    pnext = p;
+    p = p->next;
+  }
+  piece_free(pnext);
+  starting_piece->next = ending_piece->next;
+  piece_free(p);
+
+  return true;
+}
+
+bool piece_table_memsafe_undo(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->memsafe_undo_stack_top)
+  {
+    return false;
+  }
+
+  // TODO: move memsafe operation from undo to redo stack
+  memsafe_operation* op = table->memsafe_undo_stack_top;
+  if(op->type == INSERT)
+  {
+    piece_table_memsafe_remove(table, op->start_position, strlen(op->string));
+  }
+
+  if(!move_memsafe_operation_from_undo_to_redo_stack(table))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool piece_table_memsafe_redo(piece_table* table)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!table->memsafe_redo_stack_top)
+  {
+    return false;
+  }
+
+  // TODO: move memsafe operation from redo to undo stack
+
+  return true;
+}
+
 bool piece_table_free(piece_table* table)
 {
   if(!table)
@@ -1677,16 +1953,16 @@ bool piece_table_free(piece_table* table)
   }
 
   // depreicated
-  if(table->undo_stack_top &&
-     !recursively_free_operation_stack(table->undo_stack_top))
-  {
-    return false;
-  }
-  if(table->redo_stack_top &&
-     !recursively_free_operation_stack(table->redo_stack_top))
-  {
-    return false;
-  }
+  // if(table->undo_stack_top &&
+  //    !recursively_free_operation_stack(table->undo_stack_top))
+  // {
+  //   return false;
+  // }
+  // if(table->redo_stack_top &&
+  //    !recursively_free_operation_stack(table->redo_stack_top))
+  // {
+  //   return false;
+  // }
 
   // new stuff
   if(table->memsafe_undo_stack_top &&
