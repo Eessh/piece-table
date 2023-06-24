@@ -301,6 +301,10 @@ bool memsafe_operation_free(memsafe_operation* op)
   {
     free(op->inserted_string);
   }
+  if(op->removed_string)
+  {
+    free(op->removed_string);
+  }
 
   free(op);
   return true;
@@ -480,7 +484,8 @@ bool split_piece_at(piece* p, const unsigned int offset)
     return false;
   }
 
-  if(!insert_piece_after(piece_new(p->buffer, offset, p->length - offset), p))
+  if(!insert_piece_after(piece_new(p->buffer, offset, p->length - offset + 1),
+                         p))
   {
     return false;
   }
@@ -1315,7 +1320,7 @@ bool piece_table_remove(piece_table* table,
     remove_piece_from_table(table, starting_piece);
   }
 
-  if(!split_piece_at(ending_piece, ending_piece_offset))
+  if(!split_piece_at(ending_piece, ending_piece_offset + 1))
   {
     return false;
   }
@@ -1448,11 +1453,16 @@ char* piece_table_get_slice(const piece_table* table,
 
   if(starting_piece == ending_piece)
   {
+    // memcpy(slice,
+    //        (starting_piece->buffer == ORIGINAL ? table->original_buffer
+    //                                            : table->add_buffer) +
+    //          starting_piece_offset,
+    //        starting_piece->length - starting_piece_offset);
     memcpy(slice,
            (starting_piece->buffer == ORIGINAL ? table->original_buffer
                                                : table->add_buffer) +
              starting_piece_offset,
-           starting_piece->length - starting_piece_offset);
+           length);
     slice[length] = '\0';
     return slice;
   }
@@ -1878,7 +1888,7 @@ bool piece_table_memsafe_remove(piece_table* table,
   //   remove_piece_from_table(table, starting_piece->next);
   // }
   if(ending_piece_offset != ending_piece->length &&
-     !split_piece_at(ending_piece, ending_piece_offset))
+     !split_piece_at(ending_piece, ending_piece_offset + 1))
   {
     printf("ending_piece_offset = %d, ending_piece_length = %d\n",
            ending_piece_offset,
@@ -1907,6 +1917,220 @@ bool piece_table_memsafe_remove(piece_table* table,
   piece_free(pnext);
   starting_piece->next = ending_piece->next;
   piece_free(p);
+
+  return true;
+}
+
+bool piece_table_memsafe_replace(piece_table* table,
+                                 const unsigned int position,
+                                 const unsigned int length,
+                                 const char* string)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!string)
+  {
+    return false;
+  }
+
+  piece* starting_piece = NULL;
+  piece* ending_piece = NULL;
+  unsigned int starting_piece_offset = 0, ending_piece_offset = 0;
+
+  starting_piece_offset = position;
+  piece* p = table->pieces_head;
+  while(p)
+  {
+    if(starting_piece_offset <= p->length)
+    {
+      break;
+    }
+    starting_piece_offset -= p->length;
+    p = p->next;
+  }
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
+  starting_piece = p;
+
+  p = table->pieces_head;
+  ending_piece_offset = position + length;
+  while(p)
+  {
+    if(ending_piece_offset <= p->length)
+    {
+      break;
+    }
+    ending_piece_offset -= p->length;
+    p = p->next;
+  }
+  if(!p)
+  {
+    // position or length out of bounds
+    return false;
+  }
+  ending_piece = p;
+
+  char* slice = piece_table_get_slice(table, position, length);
+  memsafe_operation* msop =
+    memsafe_operation_new(REPLACE, position, length, string, slice);
+  if(msop)
+  {
+    push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
+  }
+  else
+  {
+    printf("Unable to record REMOVE operation!\n");
+  }
+  free(slice);
+
+  // Removal
+  if(starting_piece == ending_piece)
+  {
+    if(starting_piece_offset + length == p->length)
+    {
+      starting_piece->length -= length;
+    }
+    else
+    {
+      if(!split_piece_at(starting_piece, starting_piece_offset + length))
+      {
+        return false;
+      }
+      if(!split_piece_at(starting_piece, starting_piece_offset))
+      {
+        return false;
+      }
+      remove_piece_from_table(table, starting_piece->next);
+    }
+  }
+  else
+  {
+    if(starting_piece_offset != starting_piece->length &&
+       !split_piece_at(starting_piece, starting_piece_offset))
+    {
+      return false;
+    }
+    if(ending_piece_offset != ending_piece->length &&
+       !split_piece_at(ending_piece, ending_piece_offset + 1))
+    {
+      return false;
+    }
+
+    printf("ending piece offset: %d\n", ending_piece_offset);
+    if(starting_piece->next == ending_piece)
+    {
+      remove_piece_from_table(table, ending_piece);
+    }
+    else
+    {
+      p = starting_piece->next;
+      piece* pnext = NULL;
+      while(p != ending_piece)
+      {
+        piece_free(pnext);
+        pnext = p;
+        p = p->next;
+      }
+      piece_free(pnext);
+      starting_piece->next = ending_piece->next;
+      piece_free(p);
+    }
+  }
+
+  printf("AFTER REMOVE:\n");
+  piece_table_log(table);
+  char* full_buffer = piece_table_to_string(table);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
+  // Insert
+  unsigned int remaining_offset = position;
+  p = table->pieces_head;
+  while(p)
+  {
+    if(remaining_offset <= p->length)
+    {
+      break;
+    }
+    remaining_offset -= p->length;
+    p = p->next;
+  }
+
+  if(!p)
+  {
+    // position out of bounds
+    return false;
+  }
+
+  unsigned int add_buffer_length =
+    table->add_buffer ? strlen(table->add_buffer) : 0;
+  unsigned int string_length = strlen(string);
+  unsigned int new_add_buffer_length = add_buffer_length + string_length + 1;
+
+  if(!table->add_buffer)
+  {
+    table->add_buffer = strdup(string);
+    if(!table->add_buffer)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    char* temp =
+      (char*)realloc(table->add_buffer, sizeof(char) * new_add_buffer_length);
+    if(!temp)
+    {
+      return false;
+    }
+    table->add_buffer = temp;
+    memcpy(table->add_buffer + add_buffer_length,
+           string,
+           sizeof(char) * string_length);
+    table->add_buffer[new_add_buffer_length - 1] = '\0';
+  }
+
+  if(remaining_offset == p->length)
+  {
+    if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+    {
+      return false;
+    }
+    return true;
+  }
+
+  if(remaining_offset == 0)
+  {
+    piece* new_p = piece_new(ADD, add_buffer_length, string_length);
+    new_p->next = p;
+    if(p == table->pieces_head)
+    {
+      table->pieces_head = new_p;
+      return true;
+    }
+    piece* temp = table->pieces_head;
+    while(temp->next != p)
+    {
+      temp = temp->next;
+    }
+    temp->next = new_p;
+    return true;
+  }
+
+  if(!split_piece_at(p, remaining_offset))
+  {
+    return false;
+  }
+  if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+  {
+    return false;
+  }
 
   return true;
 }
@@ -2044,7 +2268,7 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
   //   remove_piece_from_table(table, starting_piece->next);
   // }
   if(ending_piece_offset != ending_piece->length &&
-     !split_piece_at(ending_piece, ending_piece_offset))
+     !split_piece_at(ending_piece, ending_piece_offset + 1))
   {
     printf("ending_piece_offset = %d, ending_piece_length = %d\n",
            ending_piece_offset,
@@ -2225,6 +2449,10 @@ bool piece_table_memsafe_undo(piece_table* table)
     //   op->start_position,
     //   piece_table_get_slice(table, op->start_position, op->length));
     memsafe_undo_remove(table, op);
+  }
+  else
+  {
+    memsafe_undo_replace(table, op);
   }
 
   if(!move_memsafe_operation_from_undo_to_redo_stack(table))
