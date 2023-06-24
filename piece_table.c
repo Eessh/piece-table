@@ -2475,7 +2475,26 @@ bool piece_table_memsafe_redo(piece_table* table)
     return false;
   }
 
+  memsafe_operation* op = table->memsafe_redo_stack_top;
+  if(op->type == INSERT)
+  {
+    piece_table_insert(table, op->start_position, op->inserted_string);
+  }
+  else if(op->type == REMOVE)
+  {
+    piece_table_memsafe_remove(table, op->start_position, op->length);
+  }
+  else
+  {
+    piece_table_memsafe_replace(
+      table, op->start_position, op->length, op->inserted_string);
+  }
+
   // TODO: move memsafe operation from redo to undo stack
+  if(!move_memsafe_operation_from_redo_to_undo_stack(table))
+  {
+    return false;
+  }
 
   return true;
 }
