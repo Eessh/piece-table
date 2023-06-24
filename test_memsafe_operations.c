@@ -42,6 +42,28 @@ int main()
   printf("Full Buffer: %s\n", full_buffer);
   free(full_buffer);
 
+  // Removing
+  if(!piece_table_memsafe_remove(pt, 2, 8))
+  {
+    printf("Unable to memsafe remove!\n");
+    return 1;
+  }
+  piece_table_log(pt);
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
+  // MemSafe undo
+  if(!piece_table_memsafe_undo(pt))
+  {
+    printf("Unable to memsafe undo!\n");
+    return 1;
+  }
+  piece_table_log(pt);
+  full_buffer = piece_table_to_string(pt);
+  printf("Full Buffer: %s\n", full_buffer);
+  free(full_buffer);
+
   if(!piece_table_free(pt))
   {
     printf("Unable to free piece_table!\n");
