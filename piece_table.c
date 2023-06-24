@@ -47,7 +47,8 @@ typedef struct memsafe_operation
 
   unsigned int start_position;
   unsigned int length;
-  char* string;
+  char* inserted_string;
+  char* removed_string;
 
   struct memsafe_operation* next;
 } memsafe_operation;
@@ -90,13 +91,14 @@ bool operation_free(operation* op);
 /// @brief Creates a new memsafe operation.
 /// @param type Type of operation done.
 /// @param start_position Start position of the operation.
-/// @param length Length of string or replaced portion in operation.
-/// @param string String inserted or replaced string in operation
+/// @param length Length of inserted_string or replaced portion in operation.
+/// @param inserted_string String inserted or replaced string in operation
 /// @return Returns new memsafe operation with given parameters.
 memsafe_operation* memsafe_operation_new(const operation_type type,
                                          const unsigned int start_position,
                                          const unsigned int length,
-                                         const char* string);
+                                         const char* inserted_string,
+                                         const char* removed_string);
 
 /// @brief Frees memory of memsafe operation.
 /// @param op Memsafe operation to free.
@@ -244,7 +246,8 @@ bool operation_free(operation* op)
 memsafe_operation* memsafe_operation_new(const operation_type type,
                                          const unsigned int start_position,
                                          const unsigned int length,
-                                         const char* string)
+                                         const char* inserted_string,
+                                         const char* removed_string)
 {
   memsafe_operation* op =
     (memsafe_operation*)calloc(1, sizeof(memsafe_operation));
@@ -256,14 +259,27 @@ memsafe_operation* memsafe_operation_new(const operation_type type,
   op->type = type;
   op->start_position = start_position;
   op->length = length;
-  if(!string)
+  if(!inserted_string)
   {
-    op->string = NULL;
+    op->inserted_string = NULL;
   }
   else
   {
-    op->string = strdup(string);
-    if(!op->string)
+    op->inserted_string = strdup(inserted_string);
+    if(!op->inserted_string)
+    {
+      free(op);
+      return NULL;
+    }
+  }
+  if(!removed_string)
+  {
+    op->removed_string = NULL;
+  }
+  else
+  {
+    op->removed_string = strdup(removed_string);
+    if(!op->removed_string)
     {
       free(op);
       return NULL;
@@ -281,9 +297,9 @@ bool memsafe_operation_free(memsafe_operation* op)
     return false;
   }
 
-  if(op->string)
+  if(op->inserted_string)
   {
-    free(op->string);
+    free(op->inserted_string);
   }
 
   free(op);
@@ -759,7 +775,8 @@ bool piece_table_insert(piece_table* table,
   // as it is based on commad approach
   // we don't care about how the pieces are mutated
   // we just record the operation done
-  memsafe_operation* msop = memsafe_operation_new(INSERT, position, 0, string);
+  memsafe_operation* msop =
+    memsafe_operation_new(INSERT, position, 0, string, NULL);
   if(msop)
   {
     push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
@@ -1800,7 +1817,7 @@ bool piece_table_memsafe_remove(piece_table* table,
 
   char* slice = piece_table_get_slice(table, position, length);
   memsafe_operation* msop =
-    memsafe_operation_new(REMOVE, position, length, slice);
+    memsafe_operation_new(REMOVE, position, length, NULL, slice);
   if(msop)
   {
     push_memsafe_operation_on_stack(&table->memsafe_undo_stack_top, msop);
@@ -1935,7 +1952,7 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
   }
 
   const unsigned int position = op->start_position;
-  const unsigned int length = strlen(op->string);
+  const unsigned int length = strlen(op->inserted_string);
 
   piece* starting_piece = NULL;
   piece* ending_piece = NULL;
@@ -2073,7 +2090,7 @@ bool memsafe_undo_remove(piece_table* table, const memsafe_operation* op)
   }
 
   const unsigned int position = op->start_position;
-  char* string = op->string;
+  char* string = op->removed_string;
 
   unsigned int remaining_offset = position;
   piece* p = table->pieces_head;
@@ -2157,7 +2174,30 @@ bool memsafe_undo_remove(piece_table* table, const memsafe_operation* op)
   return true;
 }
 
-bool memsafe_undo_replace(piece_table* table, const memsafe_operation* op);
+bool memsafe_undo_replace(piece_table* table, const memsafe_operation* op)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!op)
+  {
+    return false;
+  }
+
+  if(!memsafe_undo_insert(table, op))
+  {
+    return false;
+  }
+
+  if(!memsafe_undo_remove(table, op))
+  {
+    return false;
+  }
+
+  return true;
+}
 
 bool piece_table_memsafe_undo(piece_table* table)
 {
@@ -2357,19 +2397,21 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t{ %s, %d, %d, %s },",
+        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" },",
                operation_to_string(op->type),
                op->start_position,
                op->length,
-               op->string);
+               op->inserted_string,
+               op->removed_string);
       }
       else
       {
-        printf("\n\t\t{ %s, %d, %d, %s }",
+        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" }",
                operation_to_string(op->type),
                op->start_position,
                op->length,
-               op->string);
+               op->inserted_string,
+               op->removed_string);
       }
       op = op->next;
     }
@@ -2389,19 +2431,21 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t{ %s, %d, %d, %s },",
+        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" },",
                operation_to_string(op->type),
                op->start_position,
                op->length,
-               op->string);
+               op->inserted_string,
+               op->removed_string);
       }
       else
       {
-        printf("\n\t\t{ %s, %d, %d, %s }",
+        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" }",
                operation_to_string(op->type),
                op->start_position,
                op->length,
-               op->string);
+               op->inserted_string,
+               op->removed_string);
       }
       op = op->next;
     }
