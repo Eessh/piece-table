@@ -2043,11 +2043,11 @@ bool piece_table_memsafe_replace(piece_table* table,
     }
   }
 
-  printf("AFTER REMOVE:\n");
-  piece_table_log(table);
-  char* full_buffer = piece_table_to_string(table);
-  printf("Full Buffer: %s\n", full_buffer);
-  free(full_buffer);
+  // printf("AFTER REMOVE:\n");
+  // piece_table_log(table);
+  // char* full_buffer = piece_table_to_string(table);
+  // printf("Full Buffer: %s\n", full_buffer);
+  // free(full_buffer);
 
   // Insert
   unsigned int remaining_offset = position;
@@ -2160,6 +2160,30 @@ bool memsafe_undo_remove(piece_table* table, const memsafe_operation* op);
 /// @param op Const pointer to memsafe operation.
 /// @return Returns false if something goes wrong.
 bool memsafe_undo_replace(piece_table* table, const memsafe_operation* op);
+
+/// @brief Re-does the insert operation.
+///        Inserts string in the memsafe operation without
+///        inserting another undo operation into undo stack.
+/// @param table Pointer to piece table.
+/// @param op Const pointer to memsafe operation.
+/// @return Returns false if something goes wrong.
+bool memsafe_redo_insert(piece_table* table, const memsafe_operation* op);
+
+/// @brief Re-does the remove operation.
+///        Removes string in the memsafe operation without
+///        inserting another undo operation into undo stack.
+/// @param table Pointer to piece table.
+/// @param op Const pointer to memsafe operation.
+/// @return Returns false if something goes wrong.
+bool memsafe_redo_remove(piece_table* table, const memsafe_operation* op);
+
+/// @brief Re-does the replace operation.
+///        Replaces string in the memsafe operation without
+///        inserting another undo operation into undo stack.
+/// @param table Pointer to piece table.
+/// @param op Const pointer to memsafe operation.
+/// @return Returns false if something goes wrong.
+bool memsafe_redo_replace(piece_table* table, const memsafe_operation* op);
 
 /// MemSafe undo & redo helpers implementation
 
@@ -2423,6 +2447,61 @@ bool memsafe_undo_replace(piece_table* table, const memsafe_operation* op)
   return true;
 }
 
+bool memsafe_redo_insert(piece_table* table, const memsafe_operation* op)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!op)
+  {
+    return false;
+  }
+
+  return memsafe_undo_remove(table, op);
+}
+
+bool memsafe_redo_remove(piece_table* table, const memsafe_operation* op)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!op)
+  {
+    return false;
+  }
+
+  return memsafe_undo_insert(table, op);
+}
+
+bool memsafe_redo_replace(piece_table* table, const memsafe_operation* op)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!op)
+  {
+    return false;
+  }
+
+  if(!memsafe_redo_remove(table, op))
+  {
+    return false;
+  }
+
+  if(!memsafe_redo_insert(table, op))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool piece_table_memsafe_undo(piece_table* table)
 {
   if(!table)
@@ -2478,16 +2557,19 @@ bool piece_table_memsafe_redo(piece_table* table)
   memsafe_operation* op = table->memsafe_redo_stack_top;
   if(op->type == INSERT)
   {
-    piece_table_insert(table, op->start_position, op->inserted_string);
+    // piece_table_insert(table, op->start_position, op->inserted_string);
+    memsafe_redo_insert(table, op);
   }
   else if(op->type == REMOVE)
   {
-    piece_table_memsafe_remove(table, op->start_position, op->length);
+    // piece_table_memsafe_remove(table, op->start_position, op->length);
+    memsafe_redo_remove(table, op);
   }
   else
   {
-    piece_table_memsafe_replace(
-      table, op->start_position, op->length, op->inserted_string);
+    // piece_table_memsafe_replace(
+    //   table, op->start_position, op->length, op->inserted_string);
+    memsafe_redo_replace(table, op);
   }
 
   // TODO: move memsafe operation from redo to undo stack
