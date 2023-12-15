@@ -3,27 +3,50 @@
 #include <string.h>
 #include "piece-table.h"
 
+
+/// Consists of types of buffers a piece can belong to.
 typedef enum buffer_type
 {
+  /// Initial buffer when file is loaded.
   ORIGINAL,
+
+  /// Buffer containing all changes made.
   ADD
 } buffer_type;
 
+
+/// Consists of all operation types that can be executed on piece table.
 typedef enum operation_type
 {
+  /// Inserts given string at specified position.
   INSERT,
+
+  /// Removes given length of characters from starting from specified position.
   REMOVE,
+
+  /// Replaces specified range with given string.
   REPLACE
 } operation_type;
 
+
+/// Piece points to a range/slice of characters inside its buffer.
 typedef struct piece
 {
+  /// The buffer this piece belongs to (`ORIGINAL` or `ADD`).
   buffer_type buffer;
+
+  /// Start position of range/slice this piece points to.
+  /// This follows `0` based indexing
   unsigned int start_position;
+
+  /// Length of range/slice this piece points to.
   unsigned int length;
 
+  /// Points to next piece.
+  /// `NULL` if no piece exists after this.
   struct piece* next;
 } piece;
+
 
 typedef struct operation
 {
@@ -36,6 +59,7 @@ typedef struct operation
 
   struct operation* next;
 } operation;
+
 
 // These operations are Command-Based
 // so every time the undo or redo operation is executed
@@ -53,11 +77,22 @@ typedef struct memsafe_operation
   struct memsafe_operation* next;
 } memsafe_operation;
 
+
+/// Piece Table is the one which holds the buffers (ORIGINAL and ADD),
+/// pieces, undo and redo stacks together.
 struct piece_table
 {
+  /// Original buffer consists of characters which are loaded initially.
+  /// This will be `NULL` if piece-table is created using `piece_table_new()`
+  /// Create using `piece_table_from_string()` if you want to initialize this.
   char* original_buffer;
+
+  /// Add buffer consists of characters which are inserted after loading.
+  /// This will be `NULL` after initializing piece-table.
   char* add_buffer;
 
+  /// Head piece for linked list of all pieces.
+  /// This will be `NULL` after initializing piece-table.
   piece* pieces_head;
 
   // depreciated
@@ -68,9 +103,12 @@ struct piece_table
   memsafe_operation* memsafe_undo_stack_top;
   memsafe_operation* memsafe_redo_stack_top;
 
+  /// Points to piece which is consuming micro-inserts.
+  /// This will be `NULL` if no piece is consuming micro-inserts.
   piece* piece_with_micro_inserts;
   operation* undo_with_micro_inserts;
 };
+
 
 /// Piece API
 piece* piece_new(const buffer_type buffer,
@@ -2637,7 +2675,7 @@ bool piece_table_log(piece_table* table)
 
   // logging buffers
   printf(
-    "Piece Table: {\n\toriginal_buffer: %s,\n\tadd_buffer: %s,\n\tpieces: [",
+    "Piece Table: {\n  original_buffer: %s,\n  add_buffer: %s,\n  pieces: [",
     table->original_buffer,
     table->add_buffer);
 
@@ -2653,8 +2691,8 @@ bool piece_table_log(piece_table* table)
     piece* p = table->pieces_head;
     while(p)
     {
-      printf("\n\t\t{\n\t\t\tbuffer: %s,\n\t\t\tstart_position: "
-             "%d,\n\t\t\tlength: %d\n\t\t}",
+      printf("\n    {\n      buffer: %s,\n      start_position: "
+             "%d,\n      length: %d\n    }",
              p->buffer == ORIGINAL ? "ORIGINAL" : "ADD",
              p->start_position,
              p->length);
@@ -2662,11 +2700,11 @@ bool piece_table_log(piece_table* table)
     }
 
     // printf("\n\t]\n}\n");
-    printf("\n\t],");
+    printf("\n  ],");
   }
 
   // logging undo stack
-  printf("\n\tundo_stack: [");
+  printf("\n  undo_stack: [");
   if(!table->undo_stack_top)
   {
     printf("],");
@@ -2678,19 +2716,19 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t%s,", operation_to_string(op->type));
+        printf("\n    %s,", operation_to_string(op->type));
       }
       else
       {
-        printf("\n\t\t%s", operation_to_string(op->type));
+        printf("\n    %s", operation_to_string(op->type));
       }
       op = op->next;
     }
-    printf("\n\t],");
+    printf("\n  ],");
   }
 
   // logging redo stack
-  printf("\n\tredo_stack: [");
+  printf("\n  redo_stack: [");
   if(!table->redo_stack_top)
   {
     printf("],");
@@ -2702,19 +2740,19 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t%s,", operation_to_string(op->type));
+        printf("\n    %s,", operation_to_string(op->type));
       }
       else
       {
-        printf("\n\t\t%s", operation_to_string(op->type));
+        printf("\n    %s", operation_to_string(op->type));
       }
       op = op->next;
     }
-    printf("\n\t],");
+    printf("\n  ],");
   }
 
   // logging memsafe undo stack
-  printf("\n\tmemsafe_undo_stack: [");
+  printf("\n  memsafe_undo_stack: [");
   if(!table->memsafe_undo_stack_top)
   {
     printf("],");
@@ -2726,7 +2764,7 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" },",
+        printf("\n    { %s, %d, %d, \"%s\", \"%s\" },",
                operation_to_string(op->type),
                op->start_position,
                op->length,
@@ -2735,7 +2773,7 @@ bool piece_table_log(piece_table* table)
       }
       else
       {
-        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" }",
+        printf("\n    { %s, %d, %d, \"%s\", \"%s\" }",
                operation_to_string(op->type),
                op->start_position,
                op->length,
@@ -2744,11 +2782,11 @@ bool piece_table_log(piece_table* table)
       }
       op = op->next;
     }
-    printf("\n\t],");
+    printf("\n  ],");
   }
 
   // logging memsafe redo stack
-  printf("\n\tmemsafe_redo_stack: [");
+  printf("\n  memsafe_redo_stack: [");
   if(!table->memsafe_redo_stack_top)
   {
     printf("]\n}\n");
@@ -2760,7 +2798,7 @@ bool piece_table_log(piece_table* table)
     {
       if(op->next)
       {
-        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" },",
+        printf("\n    { %s, %d, %d, \"%s\", \"%s\" },",
                operation_to_string(op->type),
                op->start_position,
                op->length,
@@ -2769,7 +2807,7 @@ bool piece_table_log(piece_table* table)
       }
       else
       {
-        printf("\n\t\t{ %s, %d, %d, \"%s\", \"%s\" }",
+        printf("\n    { %s, %d, %d, \"%s\", \"%s\" }",
                operation_to_string(op->type),
                op->start_position,
                op->length,
@@ -2778,7 +2816,7 @@ bool piece_table_log(piece_table* table)
       }
       op = op->next;
     }
-    printf("\n\t]\n}\n");
+    printf("\n  ]\n}\n");
   }
 
   return true;
