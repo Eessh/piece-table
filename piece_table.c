@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "piece-table.h"
 
 /// Consists of types of buffers a piece can belong to.
@@ -103,10 +104,219 @@ struct piece_table
   operation* undo_with_micro_inserts;
 };
 
-/// Piece API
+///////////////////////////////////////////////////////////////////////////////
+/// * Piece API
+///////////////////////////////////////////////////////////////////////////////
+
+/// Creates a new piece pointing the given buffer with specified range.
+/// Returns `NULL` if memory allocation fails.
 piece*
 piece_new(buffer_type buffer, unsigned int start_position, unsigned int length);
+
+/// Deallocates memory used by piece.
+/// This doesn't deallocate the string range/slice to which
+/// this piece points to.
+/// Returns `false` if pointer to piece is `NULL`.
 bool piece_free(piece* p);
+
+/// Dellocates list of pieces starting from this piece to end of pieces list.
+/// Returns `false` if pointer to piece is `NULL` or if freeing of some piece
+/// in the list fails.
+bool piece_free_all_recursively(piece* p);
+
+/// Splits a piece into two.
+/// Returns pointer to the new piece from splitting.
+/// Returns `NULL` if offset is `0` or pointer to piece is `NULL`, or memory
+/// allocation for new piece after splitting fails.
+/// If you want to split at offset `0`, this is not the function for that case.
+/// Use `piece_insert_after()` instead.
+piece* piece_split_at(piece* p, unsigned int offset);
+
+/// Inserts given piece after the specified piece.
+/// Returns `false` if pointer to one of these pieces is `NULL`.
+bool piece_insert_after(piece* p, piece* piece_to_insert);
+
+/// Removes this piece from the linked-list of pieces in piece-table.
+/// NOTE: This also frees the memory used by this piece.
+/// Returns `false` if pointer to piece_table or piece is `NULL`.
+/// Will also return `false` if deallocation of memory for piece fails.
+bool piece_remove(piece_table* table, piece* p);
+
+/// Removes range/slice of pieces between given `start` and `end` pieces
+/// excluding them, from the linked-list of pieces in piece-table.
+/// NOTE: This also frees the memory used by these slice of pieces.
+/// Returns `false` if pointer to `start` / `end` piece is `NULL` or freeing
+/// of memory used by these slice of pieces fails.
+bool piece_remove_slice_between_pieces(piece* start, piece* end);
+
+///////////////////////////////////////////////////////////////////////////////
+/// * Piece API Implementation
+///////////////////////////////////////////////////////////////////////////////
+
+piece*
+piece_new(buffer_type buffer, unsigned int start_position, unsigned int length)
+{
+  piece* p = (piece*)calloc(1, sizeof(piece));
+  if(!p)
+  {
+    return NULL;
+  }
+
+  p->buffer = buffer;
+  p->start_position = start_position;
+  p->length = length;
+  p->next = NULL;
+
+  return p;
+}
+
+bool piece_free(piece* p)
+{
+  if(!p)
+  {
+    return false;
+  }
+
+  free(p);
+  return true;
+}
+
+bool piece_free_all_recursively(piece* p)
+{
+  if(!p)
+  {
+    return false;
+  }
+
+  if(p->next)
+  {
+    if(!piece_free_all_recursively(p->next))
+    {
+      return false;
+    }
+  }
+
+  free(p);
+
+  return true;
+}
+
+piece* piece_split_at(piece* p, unsigned int offset)
+{
+  if(!p)
+  {
+    return NULL;
+  }
+
+  if(offset == 0)
+  {
+    return NULL;
+  }
+
+  piece* new_piece = piece_new(p->buffer, offset, p->length - offset + 1);
+  if(!new_piece)
+  {
+    return NULL;
+  }
+
+  if(!piece_insert_after(new_piece, p))
+  {
+    return NULL;
+  }
+
+  p->length = offset;
+
+  return new_piece;
+}
+
+bool piece_insert_after(piece* p, piece* piece_to_insert)
+{
+  if(!p)
+  {
+    return false;
+  }
+
+  if(!piece_to_insert)
+  {
+    return false;
+  }
+
+  piece_to_insert->next = p->next;
+  p->next = piece_to_insert;
+
+  return true;
+}
+
+bool piece_remove(piece_table* table, piece* p)
+{
+  if(!table)
+  {
+    return false;
+  }
+
+  if(!p)
+  {
+    return false;
+  }
+
+  piece* temp = table->pieces_head;
+  if(temp == p)
+  {
+    // deleting the head
+    table->pieces_head = temp->next;
+    if(!piece_free(temp))
+    {
+      return false;
+    }
+    return true;
+  }
+
+  while(temp->next != p)
+  {
+    temp = temp->next;
+  }
+  temp->next = p->next;
+
+  if(!piece_free(p))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool piece_remove_slice_between_pieces(piece* start, piece* end)
+{
+  if(!start)
+  {
+    return false;
+  }
+
+  if(!end)
+  {
+    return false;
+  }
+
+  piece* p = start;
+  while(p->next != end)
+  {
+    p = p->next;
+  }
+  p->next = NULL;
+  p = start->next;
+  start->next = end;
+
+  if(!piece_free_all_recursively(p))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// * Operation API
+///////////////////////////////////////////////////////////////////////////////
 
 /// Operation API
 operation* operation_new(operation_type type,
@@ -165,46 +375,12 @@ bool move_memsafe_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_memsafe_operation_stack(memsafe_operation* op);
 
 /// Helpers
-bool recursively_free_pieces(piece* p);
-bool insert_piece_after(piece* p, piece* after);
-bool split_piece_at(piece* p, unsigned int offset);
-bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
-bool remove_piece_from_table(piece_table* table, piece* p);
 const char* operation_to_string(operation_type type);
 bool push_operation_on_stack(operation** stack_top, operation* op);
 bool pop_operation_from_stack(operation** stack_top);
 bool move_operation_from_undo_to_redo_stack(piece_table* table);
 bool move_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_operation_stack(operation* op);
-
-/// Piece API Implementation
-piece*
-piece_new(buffer_type buffer, unsigned int start_position, unsigned int length)
-{
-  piece* p = (piece*)calloc(1, sizeof(piece));
-  if(!p)
-  {
-    return NULL;
-  }
-
-  p->buffer = buffer;
-  p->start_position = start_position;
-  p->length = length;
-  p->next = NULL;
-
-  return p;
-}
-
-bool piece_free(piece* p)
-{
-  if(!p)
-  {
-    return false;
-  }
-
-  free(p);
-  return true;
-}
 
 /// Operation API Implementation
 operation* operation_new(operation_type type,
@@ -258,7 +434,7 @@ bool operation_free(operation* op)
     else
     {
       op->end_piece->next = NULL;
-      if(!recursively_free_pieces(op->start_piece))
+      if(!piece_free_all_recursively(op->start_piece))
       {
         return false;
       }
@@ -462,127 +638,6 @@ bool recursively_free_memsafe_operation_stack(memsafe_operation* op)
   return true;
 }
 
-/// Helpers Implementation
-bool recursively_free_pieces(piece* p)
-{
-  if(!p)
-  {
-    return false;
-  }
-
-  if(p->next)
-  {
-    if(!recursively_free_pieces(p->next))
-    {
-      return false;
-    }
-  }
-
-  free(p);
-
-  return true;
-}
-
-bool insert_piece_after(piece* p, piece* after)
-{
-  if(!after)
-  {
-    return false;
-  }
-
-  if(!p)
-  {
-    return false;
-  }
-
-  p->next = after->next;
-  after->next = p;
-
-  return true;
-}
-
-bool split_piece_at(piece* p, unsigned int offset)
-{
-  if(!p)
-  {
-    return false;
-  }
-
-  if(offset == 0)
-  {
-    return false;
-  }
-
-  if(!insert_piece_after(piece_new(p->buffer, offset, p->length - offset + 1),
-                         p))
-  {
-    return false;
-  }
-  p->length = offset;
-
-  return true;
-}
-
-bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece)
-{
-  if(!starting_piece)
-  {
-    return false;
-  }
-
-  if(!ending_piece)
-  {
-    return false;
-  }
-
-  piece* p = starting_piece;
-  while(p->next != ending_piece)
-  {
-    p = p->next;
-  }
-  p->next = NULL;
-  p = starting_piece->next;
-  starting_piece->next = ending_piece;
-
-  if(!recursively_free_pieces(p))
-  {
-    return false;
-  }
-
-  return true;
-}
-
-bool remove_piece_from_table(piece_table* table, piece* p)
-{
-  if(!table)
-  {
-    return false;
-  }
-
-  if(!p)
-  {
-    return false;
-  }
-
-  piece* temp = table->pieces_head;
-  if(temp == p)
-  {
-    // deleting the head
-    table->pieces_head = temp->next;
-    piece_free(temp);
-    return true;
-  }
-
-  while(temp->next != p)
-  {
-    temp = temp->next;
-  }
-  temp->next = p->next;
-  piece_free(p);
-
-  return true;
-}
-
 const char* operation_to_string(operation_type type)
 {
   switch(type)
@@ -602,7 +657,6 @@ const char* operation_to_string(operation_type type)
 
 bool push_operation_on_stack(operation** stack_top, operation* op)
 {
-
   if(!op)
   {
     return false;
@@ -855,14 +909,14 @@ bool piece_table_insert(piece_table* table,
     // just increase the length of the piece
     // p->length += strlen(string);
     // or insert a new piece (works best for undo & redo)
-    if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+    if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
     {
       return false;
     }
 
     // inserting undo operation for this insert
-    // operation* op = operation_new(INSERT, p, p->next, p->next, p->next->next);
-    // if(op)
+    // operation* op = operation_new(INSERT, p, p->next, p->next,
+    // p->next->next); if(op)
     // {
     //   push_operation_on_stack(&table->undo_stack_top, op);
     // }
@@ -917,11 +971,11 @@ bool piece_table_insert(piece_table* table,
     return true;
   }
 
-  if(!split_piece_at(p, remaining_offset))
+  if(!piece_split_at(p, remaining_offset))
   {
     return false;
   }
-  if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+  if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
   {
     return false;
   }
@@ -975,7 +1029,7 @@ bool piece_table_start_micro_inserts(piece_table* table, unsigned int position)
     // just increase the length of the piece
     // p->length += strlen(string);
     // or insert a new piece (works best for undo & redo)
-    if(!insert_piece_after(piece_new(ADD, add_buffer_length, 0), p))
+    if(!piece_insert_after(piece_new(ADD, add_buffer_length, 0), p))
     {
       return false;
     }
@@ -1043,11 +1097,11 @@ bool piece_table_start_micro_inserts(piece_table* table, unsigned int position)
     return true;
   }
 
-  if(!split_piece_at(p, remaining_offset))
+  if(!piece_split_at(p, remaining_offset))
   {
     return false;
   }
-  if(!insert_piece_after(piece_new(ADD, add_buffer_length, 0), p))
+  if(!piece_insert_after(piece_new(ADD, add_buffer_length, 0), p))
   {
     return false;
   }
@@ -1208,7 +1262,7 @@ bool piece_table_remove(piece_table* table,
       // starting_piece->length -= length;
 
       // split piece at starting piece offset
-      if(!split_piece_at(starting_piece, starting_piece_offset))
+      if(!piece_split_at(starting_piece, starting_piece_offset))
       {
         return false;
       }
@@ -1221,7 +1275,7 @@ bool piece_table_remove(piece_table* table,
         {
           op_starting_piece = op_starting_piece->next;
         }
-        remove_piece_from_table(table, starting_piece);
+        piece_remove(table, starting_piece);
       }
 
       // inserting undo operation for this remove
@@ -1252,13 +1306,13 @@ bool piece_table_remove(piece_table* table,
     // we need to split twice at starting_offset, starting_offset+length
     // the virtuall remove the middle piece
     // by connecting the starting end ending pieces among splitted pieces.
-    if(!split_piece_at(starting_piece, starting_piece_offset + length))
+    if(!piece_split_at(starting_piece, starting_piece_offset + length))
     {
       return false;
     }
     // starting_piece->length -= length;
     if(starting_piece_offset != 0 &&
-       !split_piece_at(starting_piece, starting_piece_offset))
+       !piece_split_at(starting_piece, starting_piece_offset))
     {
       return false;
     }
@@ -1279,7 +1333,7 @@ bool piece_table_remove(piece_table* table,
         {
           op_starting_piece = op_starting_piece->next;
         }
-        remove_piece_from_table(table, starting_piece);
+        piece_remove(table, starting_piece);
       }
     }
 
@@ -1332,7 +1386,7 @@ bool piece_table_remove(piece_table* table,
   // then virtually remove pieces between: 1, 4
   // this removes complexity of handling pieces between 2, 3
 
-  if(!split_piece_at(starting_piece, starting_piece_offset))
+  if(!piece_split_at(starting_piece, starting_piece_offset))
   {
     return false;
   }
@@ -1345,10 +1399,10 @@ bool piece_table_remove(piece_table* table,
     {
       op_starting_piece = op_starting_piece->next;
     }
-    remove_piece_from_table(table, starting_piece);
+    piece_remove(table, starting_piece);
   }
 
-  if(!split_piece_at(ending_piece, ending_piece_offset + 1))
+  if(!piece_split_at(ending_piece, ending_piece_offset + 1))
   {
     return false;
   }
@@ -1361,7 +1415,7 @@ bool piece_table_remove(piece_table* table,
     {
       op_ending_piece = op_ending_piece->next;
     }
-    remove_piece_from_table(table, ending_piece);
+    piece_remove(table, ending_piece);
   }
 
   operation* op = operation_new(REMOVE,
@@ -1881,17 +1935,17 @@ bool piece_table_memsafe_remove(piece_table* table,
     // we need to split twice at starting_offset, starting_offset+length
     // the virtuall remove the middle piece
     // by connecting the starting end ending pieces among splitted pieces.
-    if(!split_piece_at(starting_piece, starting_piece_offset + length))
+    if(!piece_split_at(starting_piece, starting_piece_offset + length))
     {
       return false;
     }
     // starting_piece->length -= length;
-    if(!split_piece_at(starting_piece, starting_piece_offset))
+    if(!piece_split_at(starting_piece, starting_piece_offset))
     {
       return false;
     }
 
-    remove_piece_from_table(table, starting_piece->next);
+    piece_remove(table, starting_piece->next);
 
     return true;
   }
@@ -1906,7 +1960,7 @@ bool piece_table_memsafe_remove(piece_table* table,
   // this removes complexity of handling pieces between 2, 3
 
   if(starting_piece_offset != starting_piece->length &&
-     !split_piece_at(starting_piece, starting_piece_offset))
+     !piece_split_at(starting_piece, starting_piece_offset))
   {
     return false;
   }
@@ -1915,7 +1969,7 @@ bool piece_table_memsafe_remove(piece_table* table,
   //   remove_piece_from_table(table, starting_piece->next);
   // }
   if(ending_piece_offset != ending_piece->length &&
-     !split_piece_at(ending_piece, ending_piece_offset + 1))
+     !piece_split_at(ending_piece, ending_piece_offset + 1))
   {
     printf("ending_piece_offset = %d, ending_piece_length = %d\n",
            ending_piece_offset,
@@ -1929,7 +1983,7 @@ bool piece_table_memsafe_remove(piece_table* table,
 
   if(starting_piece->next == ending_piece)
   {
-    remove_piece_from_table(table, ending_piece);
+    piece_remove(table, ending_piece);
     return true;
   }
 
@@ -2025,26 +2079,26 @@ bool piece_table_memsafe_replace(piece_table* table,
     }
     else
     {
-      if(!split_piece_at(starting_piece, starting_piece_offset + length))
+      if(!piece_split_at(starting_piece, starting_piece_offset + length))
       {
         return false;
       }
-      if(!split_piece_at(starting_piece, starting_piece_offset))
+      if(!piece_split_at(starting_piece, starting_piece_offset))
       {
         return false;
       }
-      remove_piece_from_table(table, starting_piece->next);
+      piece_remove(table, starting_piece->next);
     }
   }
   else
   {
     if(starting_piece_offset != starting_piece->length &&
-       !split_piece_at(starting_piece, starting_piece_offset))
+       !piece_split_at(starting_piece, starting_piece_offset))
     {
       return false;
     }
     if(ending_piece_offset != ending_piece->length &&
-       !split_piece_at(ending_piece, ending_piece_offset + 1))
+       !piece_split_at(ending_piece, ending_piece_offset + 1))
     {
       return false;
     }
@@ -2052,7 +2106,7 @@ bool piece_table_memsafe_replace(piece_table* table,
     printf("ending piece offset: %d\n", ending_piece_offset);
     if(starting_piece->next == ending_piece)
     {
-      remove_piece_from_table(table, ending_piece);
+      piece_remove(table, ending_piece);
     }
     else
     {
@@ -2125,7 +2179,7 @@ bool piece_table_memsafe_replace(piece_table* table,
 
   if(remaining_offset == p->length)
   {
-    if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+    if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
     {
       return false;
     }
@@ -2150,11 +2204,11 @@ bool piece_table_memsafe_replace(piece_table* table,
     return true;
   }
 
-  if(!split_piece_at(p, remaining_offset))
+  if(!piece_split_at(p, remaining_offset))
   {
     return false;
   }
-  if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+  if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
   {
     return false;
   }
@@ -2285,17 +2339,17 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
     // we need to split twice at starting_offset, starting_offset+length
     // the virtuall remove the middle piece
     // by connecting the starting end ending pieces among splitted pieces.
-    if(!split_piece_at(starting_piece, starting_piece_offset + length))
+    if(!piece_split_at(starting_piece, starting_piece_offset + length))
     {
       return false;
     }
     // starting_piece->length -= length;
-    if(!split_piece_at(starting_piece, starting_piece_offset))
+    if(!piece_split_at(starting_piece, starting_piece_offset))
     {
       return false;
     }
 
-    remove_piece_from_table(table, starting_piece->next);
+    piece_remove(table, starting_piece->next);
 
     return true;
   }
@@ -2310,7 +2364,7 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
   // this removes complexity of handling pieces between 2, 3
 
   if(starting_piece_offset != starting_piece->length &&
-     !split_piece_at(starting_piece, starting_piece_offset))
+     !piece_split_at(starting_piece, starting_piece_offset))
   {
     return false;
   }
@@ -2319,7 +2373,7 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
   //   remove_piece_from_table(table, starting_piece->next);
   // }
   if(ending_piece_offset != ending_piece->length &&
-     !split_piece_at(ending_piece, ending_piece_offset + 1))
+     !piece_split_at(ending_piece, ending_piece_offset + 1))
   {
     printf("ending_piece_offset = %d, ending_piece_length = %d\n",
            ending_piece_offset,
@@ -2333,7 +2387,7 @@ bool memsafe_undo_insert(piece_table* table, const memsafe_operation* op)
 
   if(starting_piece->next == ending_piece)
   {
-    remove_piece_from_table(table, ending_piece);
+    piece_remove(table, ending_piece);
     return true;
   }
 
@@ -2410,7 +2464,7 @@ bool memsafe_undo_remove(piece_table* table, const memsafe_operation* op)
   // If we are inserting at end of any piece
   if(remaining_offset == p->length)
   {
-    if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+    if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
     {
       return false;
     }
@@ -2437,11 +2491,11 @@ bool memsafe_undo_remove(piece_table* table, const memsafe_operation* op)
     return true;
   }
 
-  if(!split_piece_at(p, remaining_offset))
+  if(!piece_split_at(p, remaining_offset))
   {
     return false;
   }
-  if(!insert_piece_after(piece_new(ADD, add_buffer_length, string_length), p))
+  if(!piece_insert_after(piece_new(ADD, add_buffer_length, string_length), p))
   {
     return false;
   }
@@ -2545,7 +2599,8 @@ bool piece_table_memsafe_undo(piece_table* table)
   memsafe_operation* op = table->memsafe_undo_stack_top;
   if(op->type == INSERT)
   {
-    // piece_table_memsafe_remove(table, op->start_position, strlen(op->string));
+    // piece_table_memsafe_remove(table, op->start_position,
+    // strlen(op->string));
     memsafe_undo_insert(table, op);
   }
   else if(op->type == REMOVE)
@@ -2618,7 +2673,7 @@ bool piece_table_free(piece_table* table)
   free(table->original_buffer);
   free(table->add_buffer);
 
-  if(table->pieces_head && !recursively_free_pieces(table->pieces_head))
+  if(table->pieces_head && !piece_free_all_recursively(table->pieces_head))
   {
     return false;
   }
@@ -2657,8 +2712,8 @@ bool piece_table_log(const piece_table* table)
 {
   if(!table)
   {
-    printf(
-      "Error: piece_table_log(): can't log piece_table that points to NULL!");
+    printf("Error: piece_table_log(): can't log piece_table that points to "
+           "NULL!");
     return false;
   }
 
