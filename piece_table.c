@@ -3,7 +3,6 @@
 #include <string.h>
 #include "piece-table.h"
 
-
 /// Consists of types of buffers a piece can belong to.
 typedef enum buffer_type
 {
@@ -13,7 +12,6 @@ typedef enum buffer_type
   /// Buffer containing all changes made.
   ADD
 } buffer_type;
-
 
 /// Consists of all operation types that can be executed on piece table.
 typedef enum operation_type
@@ -27,7 +25,6 @@ typedef enum operation_type
   /// Replaces specified range with given string.
   REPLACE
 } operation_type;
-
 
 /// Piece points to a range/slice of characters inside its buffer.
 typedef struct piece
@@ -47,7 +44,6 @@ typedef struct piece
   struct piece* next;
 } piece;
 
-
 typedef struct operation
 {
   operation_type type;
@@ -59,7 +55,6 @@ typedef struct operation
 
   struct operation* next;
 } operation;
-
 
 // These operations are Command-Based
 // so every time the undo or redo operation is executed
@@ -76,7 +71,6 @@ typedef struct memsafe_operation
 
   struct memsafe_operation* next;
 } memsafe_operation;
-
 
 /// Piece Table is the one which holds the buffers (ORIGINAL and ADD),
 /// pieces, undo and redo stacks together.
@@ -109,15 +103,13 @@ struct piece_table
   operation* undo_with_micro_inserts;
 };
 
-
 /// Piece API
-piece* piece_new(const buffer_type buffer,
-                 const unsigned int start_position,
-                 const unsigned int length);
+piece*
+piece_new(buffer_type buffer, unsigned int start_position, unsigned int length);
 bool piece_free(piece* p);
 
 /// Operation API
-operation* operation_new(const operation_type type,
+operation* operation_new(operation_type type,
                          piece* prev_piece,
                          piece* start_piece,
                          piece* end_piece,
@@ -132,9 +124,9 @@ bool operation_free(operation* op);
 /// @param length Length of inserted_string or replaced portion in operation.
 /// @param inserted_string String inserted or replaced string in operation
 /// @return Returns new memsafe operation with given parameters.
-memsafe_operation* memsafe_operation_new(const operation_type type,
-                                         const unsigned int start_position,
-                                         const unsigned int length,
+memsafe_operation* memsafe_operation_new(operation_type type,
+                                         unsigned int start_position,
+                                         unsigned int length,
                                          const char* inserted_string,
                                          const char* removed_string);
 
@@ -175,10 +167,10 @@ bool recursively_free_memsafe_operation_stack(memsafe_operation* op);
 /// Helpers
 bool recursively_free_pieces(piece* p);
 bool insert_piece_after(piece* p, piece* after);
-bool split_piece_at(piece* p, const unsigned int offset);
+bool split_piece_at(piece* p, unsigned int offset);
 bool remove_slice_between_pieces(piece* starting_piece, piece* ending_piece);
 bool remove_piece_from_table(piece_table* table, piece* p);
-const char* operation_to_string(const operation_type type);
+const char* operation_to_string(operation_type type);
 bool push_operation_on_stack(operation** stack_top, operation* op);
 bool pop_operation_from_stack(operation** stack_top);
 bool move_operation_from_undo_to_redo_stack(piece_table* table);
@@ -186,9 +178,8 @@ bool move_operation_from_redo_to_undo_stack(piece_table* table);
 bool recursively_free_operation_stack(operation* op);
 
 /// Piece API Implementation
-piece* piece_new(const buffer_type buffer,
-                 const unsigned int start_position,
-                 const unsigned int length)
+piece*
+piece_new(buffer_type buffer, unsigned int start_position, unsigned int length)
 {
   piece* p = (piece*)calloc(1, sizeof(piece));
   if(!p)
@@ -216,7 +207,7 @@ bool piece_free(piece* p)
 }
 
 /// Operation API Implementation
-operation* operation_new(const operation_type type,
+operation* operation_new(operation_type type,
                          piece* prev_piece,
                          piece* start_piece,
                          piece* end_piece,
@@ -281,9 +272,9 @@ bool operation_free(operation* op)
 }
 
 /// MemSafe Operation API Implementation
-memsafe_operation* memsafe_operation_new(const operation_type type,
-                                         const unsigned int start_position,
-                                         const unsigned int length,
+memsafe_operation* memsafe_operation_new(operation_type type,
+                                         unsigned int start_position,
+                                         unsigned int length,
                                          const char* inserted_string,
                                          const char* removed_string)
 {
@@ -510,7 +501,7 @@ bool insert_piece_after(piece* p, piece* after)
   return true;
 }
 
-bool split_piece_at(piece* p, const unsigned int offset)
+bool split_piece_at(piece* p, unsigned int offset)
 {
   if(!p)
   {
@@ -592,7 +583,7 @@ bool remove_piece_from_table(piece_table* table, piece* p)
   return true;
 }
 
-const char* operation_to_string(const operation_type type)
+const char* operation_to_string(operation_type type)
 {
   switch(type)
   {
@@ -783,7 +774,7 @@ piece_table* piece_table_from_string(const char* string)
 }
 
 bool piece_table_insert(piece_table* table,
-                        const unsigned int position,
+                        unsigned int position,
                         const char* string)
 {
   if(!table)
@@ -949,8 +940,7 @@ bool piece_table_insert(piece_table* table,
   return true;
 }
 
-bool piece_table_start_micro_inserts(piece_table* table,
-                                     const unsigned int position)
+bool piece_table_start_micro_inserts(piece_table* table, unsigned int position)
 {
   if(!table)
   {
@@ -1159,8 +1149,8 @@ bool piece_table_stop_micro_inserts(piece_table* table)
 }
 
 bool piece_table_remove(piece_table* table,
-                        const unsigned int position,
-                        const unsigned int length)
+                        unsigned int position,
+                        unsigned int length)
 {
   if(!table)
   {
@@ -1409,8 +1399,7 @@ bool piece_table_remove(piece_table* table,
   return true;
 }
 
-char piece_table_get_char_at(const piece_table* table,
-                             const unsigned int position)
+char piece_table_get_char_at(const piece_table* table, unsigned int position)
 {
   if(!table)
   {
@@ -1435,8 +1424,8 @@ char piece_table_get_char_at(const piece_table* table,
 }
 
 char* piece_table_get_slice(const piece_table* table,
-                            const unsigned int position,
-                            const unsigned int length)
+                            unsigned int position,
+                            unsigned int length)
 {
   if(!table)
   {
@@ -1589,7 +1578,7 @@ int piece_table_get_length(const piece_table* table)
   return length;
 }
 
-char* piece_table_get_line(const piece_table* table, const unsigned int line)
+char* piece_table_get_line(const piece_table* table, unsigned int line)
 {
   if(!table)
   {
@@ -1720,8 +1709,8 @@ char* piece_table_get_line(const piece_table* table, const unsigned int line)
 }
 
 bool piece_table_replace(piece_table* table,
-                         const unsigned int position,
-                         const unsigned int length,
+                         unsigned int position,
+                         unsigned int length,
                          const char* string)
 {
   if(!table)
@@ -1815,8 +1804,8 @@ bool piece_table_redo(piece_table* table)
 }
 
 bool piece_table_memsafe_remove(piece_table* table,
-                                const unsigned int position,
-                                const unsigned int length)
+                                unsigned int position,
+                                unsigned int length)
 {
   if(!table)
   {
@@ -1960,8 +1949,8 @@ bool piece_table_memsafe_remove(piece_table* table,
 }
 
 bool piece_table_memsafe_replace(piece_table* table,
-                                 const unsigned int position,
-                                 const unsigned int length,
+                                 unsigned int position,
+                                 unsigned int length,
                                  const char* string)
 {
   if(!table)
@@ -2664,7 +2653,7 @@ bool piece_table_free(piece_table* table)
 }
 
 /// Loggers Implementation
-bool piece_table_log(piece_table* table)
+bool piece_table_log(const piece_table* table)
 {
   if(!table)
   {
