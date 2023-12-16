@@ -24,18 +24,18 @@ extern "C"
   bool piece_table_micro_insert(piece_table* table, const char* string);
   bool piece_table_stop_micro_inserts(piece_table* table);
 
-  bool piece_table_remove(piece_table* table,
-                          unsigned int position,
-                          unsigned int length);
+  // bool piece_table_remove(piece_table* table,
+  //                         unsigned int position,
+  //                         unsigned int length);
 
-  bool piece_table_replace(piece_table* table,
-                           unsigned int position,
-                           unsigned int length,
-                           const char* string);
+  // bool piece_table_replace(piece_table* table,
+  //                          unsigned int position,
+  //                          unsigned int length,
+  //                          const char* string);
 
-  bool piece_table_undo(piece_table* table);
+  // bool piece_table_undo(piece_table* table);
 
-  bool piece_table_redo(piece_table* table);
+  // bool piece_table_redo(piece_table* table);
 
   // MemSafe Operations
   bool piece_table_memsafe_remove(piece_table* table,
